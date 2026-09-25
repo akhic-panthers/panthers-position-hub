@@ -24,7 +24,7 @@ Every defender-snap gets geometry at the snap (depth off the ball, lateral offse
 - **Not a grade.** Shares describe deployment. "More deep-middle than 88% of safeties" is a fact about usage, not quality.
 - **Not GCOE/BDUE.** The paper's over-expected residuals are phase 2 (the features they need — bite, ground covered, closing on the carrier — are already computed). They will ship as per-play descriptors, never a season leaderboard, per the house rule.
 - **Not offense.** The taxonomy is defensive. Offensive alignment roles (X/Z/slot/wing/inline/backfield) are a small addition to `rules.py` if wanted; the geometry already exists in `_receivers()`.
-- **Not validated on real snaps.** Everything here has run only on synthetic tracking (`position_hub.synth`), because this container cannot reach the workspace (network policy) and holds no tracking. The gates are written; the first real run decides GO / NO-GO. See `REGISTERED_role_attribution_v1.md`.
+- **Not validated on real snaps.** Everything here has run only on synthetic tracking (`position_hub.synth`). The Databricks connection is verified live from the Mac (2026-09-25, all six probe rungs OK); the tracking lives there too, so the first real `poshub features` run is the next step. The gates are written; that run decides GO / NO-GO. See `REGISTERED_role_attribution_v1.md`.
 
 ## Population (cite handoff/POPULATION_MAP.md in the sister repo)
 Tracking 2022–2025 (2024 missing week 2 and the postseason) ∩ `pffdefense` (all seasons) ∩ `coverage_defense` (2019+) ⇒ **2022–2025, four seasons**, ~700k defender-snaps on pass plays with a charted assignment, ~1.3M total.

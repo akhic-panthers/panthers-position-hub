@@ -8,15 +8,15 @@ one that fails; run it before anything else.
 $ poshub probe
 databricks probe · https://adb-7405617646104787.7.azuredatabricks.net
   [OK ] host      HTTP 401
-  [OK ] auth      achappidi@panthers.nfl.com (Akhi)
-  [OK ] catalog   pff schemas: bronze, cff, cfl, ufl, silver, gold
-  [OK ] warehouse auto-picked Serverless Starter Warehouse [RUNNING] /sql/1.0/warehouses/…
-  [OK ] sql       SELECT 1 via Statement Execution API on warehouse …
-  [OK ] table:pffplays          pff.bronze.pffplays: 1,019,359 rows, 303 cols
-  [OK ] table:pffdefense        pff.bronze.pffdefense: 9,184,293 rows, 56 cols
-  [OK ] table:coverage_defense  pff.bronze.coverage_defense: 1,205,631 rows, 45 cols
+  [OK ] auth      akhi.chappidi@panthers.nfl.com (Akhi Chappidi)
+  [OK ] catalog   pff schemas: bronze, cff, cfl, default, gold, information_schema, silver, ufl
+  [OK ] warehouse auto-picked Serverless Starter Warehouse [RUNNING] /sql/1.0/warehouses/9ab9914b91bb4986
+  [OK ] sql       SELECT 1 via Statement Execution API on warehouse 9ab9914b91bb4986
+  [OK ] table:pffplays pff.bronze.pffplays: 1,029,604 rows, 303 cols
+  [OK ] table:pffdefense pff.bronze.pffdefense: 9,278,069 rows, 56 cols
+  [OK ] table:coverage_defense pff.bronze.coverage_defense: 1,234,678 rows, 45 cols
 ```
-(illustrative output; the numbers come from the sister project's last measurement)
+(measured 2026-09-25 from a Mac after `databricks auth login --host …`, profile `panthers`)
 
 ## Three ways to authenticate — pick one
 
