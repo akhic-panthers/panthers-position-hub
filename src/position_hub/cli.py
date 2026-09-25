@@ -9,6 +9,7 @@ be re-run alone (features are the expensive part; roles are cheap to re-score).
     poshub fit       --holdout-weeks 17 18 fit the two role models → out/model.pkl
     poshub score                          out/scored.parquet (probabilities per snap)
     poshub mix                            out/role_mix.parquet + gates + viewer/data/role_mix.json
+    poshub summarize --run-dir runs/X     aggregates + join rates + gates as markdown (what gets pushed)
     poshub demo                           the whole thing on synthetic tracking (no data needed)
 """
 from __future__ import annotations
@@ -71,10 +72,28 @@ def cmd_discover(a) -> int:
     return 0 if inv["reachable"] else 2
 
 
-def cmd_features(a) -> int:
-    from .databricks.client import get_source
+def _process_game(args: tuple) -> "pl.DataFrame | None":
+    """Top-level so ProcessPoolExecutor can pickle it. One game file → per-defender features."""
+    path, season, week = args
     from .ngs.features import defender_features_for_game
-    from .ngs.loader import iter_game_files, load_game
+    from .ngs.loader import load_game
+
+    try:
+        g = load_game(path)
+        f = defender_features_for_game(g)
+    except Exception as e:  # a broken game file is a fact to report, not a reason to lose the run
+        return pl.DataFrame({"_error": [f"{path}: {type(e).__name__}: {str(e)[:200]}"], "season": [season], "week": [week]})
+    if f.height == 0:
+        return None
+    return f.with_columns(pl.lit(season).alias("season"), pl.lit(week).alias("week"))
+
+
+def cmd_features(a) -> int:
+    import os
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    from .databricks.client import get_source
+    from .ngs.loader import iter_game_files
     from .pff.loaders import load_coverage_assignments, load_defender_snaps, load_play_context
     from .roles.rules import add_rule_roles
 
@@ -88,22 +107,40 @@ def cmd_features(a) -> int:
     cov = load_coverage_assignments(src, a.seasons)
     print(f"pffdefense: {dsnaps.height:,} defender-snaps · coverage_defense: {cov.height:,} rows")
     root = LocalDataConfig().root
-    frames = []
+    jobs = []
     for season in a.seasons:
         n = 0
         for week, f in iter_game_files(season, root):
             if a.weeks and week not in a.weeks:
                 continue
-            g = load_game(f)
-            feats = defender_features_for_game(g)
-            if feats.height:
-                frames.append(feats.with_columns(pl.lit(season).alias("season"), pl.lit(week).alias("week")))
-                n += 1
+            jobs.append((str(f), season, week))
+            n += 1
             if a.max_games and n >= a.max_games:
                 break
-        print(f"  {season}: {n} games")
-    if not frames:
+        print(f"  {season}: {n} game files queued")
+    if not jobs:
         print("no tracking games found under", root, "— set PANTHERS_DATA_DIR or POSHUB_TABLE_NGS_TRACKING", file=sys.stderr)
+        return 2
+    workers = a.workers or max(1, min(8, (os.cpu_count() or 2) - 1))
+    frames, errors, done = [], [], 0
+    print(f"  {len(jobs)} games on {workers} workers")
+    with ProcessPoolExecutor(max_workers=workers) as ex:
+        futs = {ex.submit(_process_game, j): j for j in jobs}
+        for fut in as_completed(futs):
+            r = fut.result()
+            done += 1
+            if r is None:
+                continue
+            if "_error" in r.columns:
+                errors.append(r["_error"][0])
+            else:
+                frames.append(r)
+            if done % 25 == 0 or done == len(jobs):
+                print(f"  {done}/{len(jobs)} games · {sum(f.height for f in frames):,} defender-snaps · {len(errors)} errors", flush=True)
+    if errors:
+        (out / "features_errors.txt").write_text("\n".join(errors) + "\n")
+        print(f"  {len(errors)} game files failed → {out / 'features_errors.txt'}", file=sys.stderr)
+    if not frames:
         return 2
     feats = pl.concat(frames, how="diagonal_relaxed")
     feats = feats.join(dsnaps.select("game_key", "gsis_play_id", "nfl_id", "pff_alignment", "pff_align_family", "pff_game_position",
@@ -117,6 +154,55 @@ def cmd_features(a) -> int:
     feats.write_parquet(out / "features.parquet")
     print(f"wrote {out / 'features.parquet'}: {feats.height:,} defender-snaps, PFF join {feats['pff_alignment'].is_not_null().mean():.1%}, "
           f"charted responsibility {feats['responsibility'].is_not_null().mean():.1%}")
+    return 0
+
+
+def cmd_summarize(a) -> int:
+    """Population + join-rate summary of a run, as markdown. Aggregates only, never rows."""
+    out = Path(a.out)
+    lines = [f"# run summary · {out}", ""]
+    if (out / "features.parquet").exists():
+        f = pl.read_parquet(out / "features.parquet")
+        lines += ["## features", "", "| season | games | plays | defender-snaps | defenders | PFF alignment joined | charted coverage | pass share | ball proxy = center |",
+                  "|---|---|---|---|---|---|---|---|---|"]
+        g = f.group_by("season").agg(pl.col("game_key").n_unique().alias("games"),
+                                     pl.struct("game_key", "gsis_play_id").n_unique().alias("plays"), pl.len().alias("snaps"),
+                                     pl.col("nfl_id").n_unique().alias("defenders"),
+                                     pl.col("pff_alignment").is_not_null().mean().alias("pff") if "pff_alignment" in f.columns else pl.lit(None).alias("pff"),
+                                     pl.col("responsibility").is_not_null().mean().alias("cov") if "responsibility" in f.columns else pl.lit(None).alias("cov"),
+                                     pl.col("has_throw").mean().alias("pass"),
+                                     (pl.col("ball_proxy") == "center").mean().alias("ctr")).sort("season")
+        for r in g.iter_rows(named=True):
+            pct = lambda v: "—" if v is None else f"{v:.1%}"
+            lines.append(f"| {r['season']} | {r['games']} | {r['plays']:,} | {r['snaps']:,} | {r['defenders']:,} | {pct(r['pff'])} | {pct(r['cov'])} | {pct(r['pass'])} | {pct(r['ctr'])} |")
+        if "rule_align_role" in f.columns:
+            lines += ["", "### rule alignment role × PFF family (row %)", ""]
+            if "pff_align_family" in f.columns:
+                ct = (f.filter(pl.col("pff_align_family").is_not_null()).group_by("rule_align_role", "pff_align_family").len()
+                       .with_columns((pl.col("len") / pl.col("len").sum().over("rule_align_role")).alias("share")).sort("rule_align_role", "share", descending=[False, True]))
+                for role, grp in ct.group_by("rule_align_role", maintain_order=True):
+                    lines.append(f"- **{role[0]}** → " + ", ".join(f"{r['pff_align_family']} {r['share']:.0%}" for r in grp.head(4).iter_rows(named=True)))
+    if (out / "model.json").exists():
+        lines += ["", "## fit", "", "```", (out / "model.json").read_text().strip(), "```"]
+    if (out / "gates.md").exists():
+        lines += ["", "## gates", "", (out / "gates.md").read_text().strip()]
+    if (out / "role_mix.parquet").exists():
+        m = pl.read_parquet(out / "role_mix.parquet")
+        lines += ["", "## role mix", "", f"{m.height} player-seasons above the snap floor; by peer group: "
+                  + ", ".join(f"{k} {v}" for k, v in sorted(m.group_by("peer_group").len().iter_rows()))]
+        if "share_DEEP_MIDDLE" in m.columns:
+            top = m.filter(pl.col("peer_group") == "S").sort("snaps", descending=True).head(12)
+            lines += ["", "| safety | team | snaps | deep middle | deep half | box | slot | entropy |", "|---|---|---|---|---|---|---|---|"]
+            for r in top.iter_rows(named=True):
+                lines.append(f"| {r.get('player_name')} | {r.get('team')} | {r['snaps']} | {r.get('share_DEEP_MIDDLE', 0):.0%} | {r.get('share_DEEP_HALF', 0):.0%} | "
+                             f"{r.get('share_BOX_SAFETY', 0):.0%} | {r.get('share_SLOT_CB', 0):.0%} | {r.get('align_entropy', 0):.2f} |")
+    if (out / "features_errors.txt").exists():
+        errs = (out / "features_errors.txt").read_text().strip().splitlines()
+        lines += ["", f"## {len(errs)} game files failed", "", "```", *errs[:20], "```"]
+    md = "\n".join(lines) + "\n"
+    Path(a.run_dir).mkdir(parents=True, exist_ok=True)
+    (Path(a.run_dir) / "summary.md").write_text(md)
+    print(md)
     return 0
 
 
@@ -217,7 +303,8 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sql"); s.add_argument("statement"); s.add_argument("--out-file"); s.set_defaults(fn=cmd_sql)
     s = sub.add_parser("discover"); s.add_argument("--out-file", default="data_contracts/uc_inventory.json"); s.add_argument("--catalog"); s.set_defaults(fn=cmd_discover)
     s = sub.add_parser("features"); s.add_argument("--seasons", type=int, nargs="+", default=[2024, 2025]); s.add_argument("--weeks", type=int, nargs="*")
-    s.add_argument("--max-games", type=int); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_features)
+    s.add_argument("--max-games", type=int); s.add_argument("--workers", type=int); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_features)
+    s = sub.add_parser("summarize"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_summarize)
     s = sub.add_parser("fit"); s.add_argument("--holdout-weeks", type=int, nargs="*", default=[17, 18]); s.add_argument("--seed", type=int, default=0); s.set_defaults(fn=cmd_fit)
     s = sub.add_parser("score"); s.set_defaults(fn=cmd_score)
     s = sub.add_parser("mix"); s.add_argument("--min-snaps", type=int, default=100); s.add_argument("--min-snaps-pct", type=int, default=200)
