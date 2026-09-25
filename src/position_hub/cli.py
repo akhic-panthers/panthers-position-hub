@@ -274,6 +274,69 @@ def cmd_verify(a) -> int:
     return 0
 
 
+def cmd_extend(a) -> int:
+    """Phase 3 extensions E1–E5 (docs/REGISTERED_phase3_extensions.md) → <run-dir>/extensions.md + gates JSON.
+    Per-play descriptors and per-player tables go to <out>/ (gitignored); only aggregates reach the run folder."""
+    from .databricks.client import get_source
+    from .eval.extensions import e1_over_expected, e2_disguise, e3_zone_match, e4_offense_roles, e5_team_and_call
+    from .eval.gates import format_gates
+
+    out, run = Path(a.out), Path(a.run_dir)
+    run.mkdir(parents=True, exist_ok=True)
+    s = pl.read_parquet(out / "scored.parquet")
+    seasons = sorted(s["season"].unique().to_list())
+    gates, md = [], [f"# Phase 3 extensions · {out}", "", "Registered in docs/REGISTERED_phase3_extensions.md before this ran.", ""]
+    g, L, pp = e1_over_expected(s)
+    gates += g; md += L
+    pp.write_parquet(out / "over_expected_per_play.parquet")
+    print("E1 done", flush=True)
+    g, L, disg = e2_disguise(s)
+    gates += g; md += L
+    disg.write_parquet(out / "disguise_by_player.parquet")
+    print("E2 done", flush=True)
+    g, L = e3_zone_match(s)
+    gates += g; md += L
+    print("E3 done", flush=True)
+    if (out / "offense_alignment.parquet").exists():
+        off = pl.read_parquet(out / "offense_alignment.parquet")
+        cache = out / "cache" / f"pffoffense_{'_'.join(map(str, seasons))}.parquet"
+        if cache.exists():
+            po = pl.read_parquet(cache)
+        else:
+            src = get_source(a.source)
+            gids = s.select("game_key").unique()["game_key"].to_list()
+            frames = []
+            for i in range(0, len(gids), 300):
+                chunk = ", ".join(str(int(x)) for x in gids[i:i + 300])
+                frames.append(src.read("pffoffense", ["pff_GSISGAMEKEY", "pff_GSISPLAYID", "pff_GSISPLAYERID", "pff_POSITION"],
+                                       where=f"pff_GSISGAMEKEY IN ({chunk})"))
+            po = pl.concat(frames).select(pl.col("pff_GSISGAMEKEY").cast(pl.Int64).alias("game_key"), pl.col("pff_GSISPLAYID").cast(pl.Int64).alias("gsis_play_id"),
+                                          pl.col("pff_GSISPLAYERID").cast(pl.Int64, strict=False).alias("nfl_id"), pl.col("pff_POSITION").alias("pff_off_position"))
+            po = po.unique(["game_key", "gsis_play_id", "nfl_id"])
+            po.write_parquet(cache)
+        g, L, orole = e4_offense_roles(off, po)
+        gates += g; md += L
+        orole.write_parquet(out / "offense_roles.parquet")
+        print("E4 done", flush=True)
+    L, shell, call = e5_team_and_call(s)
+    md += L
+    shell.write_parquet(out / "shell_by_situation.parquet")
+    call.write_parquet(out / "safety_mix_by_call.parquet")
+    md += ["", "## gates", "", format_gates(gates)]
+    (run / "extensions.md").write_text("\n".join(md) + "\n")
+    (run / "extensions_gates.json").write_text(json.dumps(gates, indent=1, default=str))
+    print("\n".join(md))
+    return 0
+
+
+def cmd_report(a) -> int:
+    from .eval.report import build
+
+    names = [n.strip() for n in (a.names or "").split(",") if n.strip()]
+    print(build(Path(a.out), Path(a.run_dir), team=a.team, named_players=names))
+    return 0
+
+
 def _holdout(feats: pl.DataFrame, weeks: list[int] | None) -> list[int]:
     if not weeks or "week" not in feats.columns:
         return []
@@ -322,8 +385,12 @@ def cmd_mix(a) -> int:
     tm.write_parquet(out / "team_role_mix.parquet")
     gates = run_gates(s, holdout_games=hold, min_snaps=a.min_snaps)
     (out / "gates.md").write_text(format_gates(gates) + "\n")
+    (out / "gates.json").write_text(json.dumps(gates, indent=1, default=str))
     print(format_gates(gates))
-    export_viewer_json(mix, Path(a.viewer_json), gates=gates, source=str(out), team_mix=tm)
+    call = pl.read_parquet(out / "safety_mix_by_call.parquet") if (out / "safety_mix_by_call.parquet").exists() else None
+    export_viewer_json(mix, Path(a.viewer_json), gates=gates, source=str(out), team_mix=tm, call=call)
+    from .viewer.export import export_pos_boards
+    export_pos_boards(mix, Path(a.viewer_json).with_name("pos_roles.json"), gates=gates)
     print(f"{mix.height} player-seasons → {out / 'role_mix.parquet'}; viewer → {a.viewer_json}")
     return 0
 
@@ -376,6 +443,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--refresh", action="store_true", help="ignore <out>/cache and re-pull the charting tables"); s.set_defaults(fn=cmd_features)
     s = sub.add_parser("summarize"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_summarize)
     s = sub.add_parser("verify"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_verify)
+    s = sub.add_parser("report"); s.add_argument("--run-dir", required=True); s.add_argument("--team", default="CAR"); s.add_argument("--names")
+    s.set_defaults(fn=cmd_report)
+    s = sub.add_parser("extend"); s.add_argument("--run-dir", required=True); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_extend)
     s = sub.add_parser("fit"); s.add_argument("--holdout-weeks", type=int, nargs="*", default=[17, 18]); s.add_argument("--seed", type=int, default=0); s.set_defaults(fn=cmd_fit)
     s = sub.add_parser("score"); s.set_defaults(fn=cmd_score)
     s = sub.add_parser("mix"); s.add_argument("--min-snaps", type=int, default=100); s.add_argument("--min-snaps-pct", type=int, default=200)

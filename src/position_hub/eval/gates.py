@@ -85,8 +85,10 @@ def destruction_control(scored: pl.DataFrame, seed: int = 0, min_snaps: int = 10
     real = split_half_stability(scored, min_snaps=min_snaps, season_col=season_col)
     null = split_half_stability(shuffled, min_snaps=min_snaps, season_col=season_col)
     v = null["value"]
-    collapsed = v is not None and not np.isnan(v) and real["value"] is not None and v < 0.5 * real["value"]
-    return {"name": "G4_destruction", "value": v, "bar": f"< 0.5 × real ({real['value']})", "pass": bool(collapsed), "n": null["n"],
+    computable = v is not None and not np.isnan(v) and real["value"] is not None and not np.isnan(real["value"])
+    collapsed = bool(computable and v < 0.5 * real["value"]) if computable else None
+    rv = f"{real['value']:.3f}" if real["value"] is not None else "—"
+    return {"name": "G4_destruction", "value": v, "bar": f"< 0.5 × real ({rv})", "pass": collapsed, "n": null["n"],
             "note": "within-play shuffle of role vectors; stability must collapse"}
 
 

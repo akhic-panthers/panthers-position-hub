@@ -42,6 +42,22 @@ Also reported, not gated: per-role r in G3; the soft-vs-hard share gap distribut
 - Descriptive vs predictive: shares and percentiles ship as **ratings of deployment**. Nothing here is a projection or a grade, and the viewer's copy says so.
 - A bug is never a finding.
 
+## Amendment v1.1 — rule defects fixed in Phase 1, BEFORE any gate was read (2026-09-25)
+The first two real games (2025 wk 1) were checked against PFF's charted slot and against NGS's own per-snap
+defender role (`ngsdb.bronze.player_play.ngs_position`, found by `poshub discover`). Five rule defects were
+ordering or mis-applied constants, not new thresholds; each has a planted regression test in
+`tests/test_rules_vocab.py` and is written out in the `roles/rules.py` docstring:
+press corners read EDGE · 5/6/7-techniques read INTERIOR (the box pad was the on-line edge line) · backers at
+6–7 yd in the box read BOX_SAFETY · off corners with inside leverage read BOX_SAFETY · a head-up 0.0 yd became
+99 yd. One constant is reused in a new place: the registered 4 yd corner constant as the minimum width outside
+the tackle for a corner on the line or an off corner (measured: press corners p5 4.1 yd, on-line edges p90 3.2).
+Rule vs PFF family on the smoke games 73% → 86%; vs NGS role 78% → 89%.
+
+Two gate constructions were also defective and are fixed: **G2b scored `resp_role`, which is overwritten by the
+charted label where one exists** (the synthetic 1.000 below was that tautology; G2b now scores
+`resp_model_role`, the model's own answer), and G2a had no real-data truth column (now the consensus label on
+held-out games). The bars are unchanged. After this amendment nothing in `rules.py` moves until a v2 registration.
+
 ## Synthetic dry run (plumbing only, 2026-09-25)
 Eight synthetic games, 3,960 defender-snaps, safeties designed to swap box/deep jobs on 35% of snaps:
 G1 0.969 · G2a 0.946 (majority 0.18) · G2b 1.000 · G3 0.999 · G4 −0.06. The designed 65/35 safety

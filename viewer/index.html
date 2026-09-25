@@ -101,6 +101,13 @@ function renderDetail() {
       ${roles.map(r => bar(L[r], p.align[r], p.pct['share_'+r])).join('')}
       <h3>Responsibility — what he does after the snap</h3>
       ${DATA.meta.roles.resp.filter(r => p.resp[r] != null).map(r => bar(L[r], p.resp[r], p.pct['resp_'+r], 'resp')).join('')}
+      ${p.by_call ? `<h3>By the call — one-high vs two-high (PFF's middle of the field, as played)</h3>
+      <div class="kv">
+        <div><span class="muted">deep, one-high calls</span><b>${p.by_call.deep_share_one_high==null?'—':Math.round(p.by_call.deep_share_one_high*100)+'%'}</b></div>
+        <div><span class="muted">deep, two-high calls</span><b>${p.by_call.deep_share_two_high==null?'—':Math.round(p.by_call.deep_share_two_high*100)+'%'}</b></div>
+        <div><span class="muted">post safety on one-high calls</span><b>${p.by_call.middle_share_one_high==null?'—':Math.round(p.by_call.middle_share_one_high*100)+'%'}</b></div>
+        <div><span class="muted">share of his mix the call explains</span><b>${p.by_call.call_explains==null?'—':Math.round(p.by_call.call_explains*100)+'%'}</b><span class="muted">${p.by_call.call_explains>=0.5?'mostly the defense he plays in':'mostly his own deployment'}</span></div>
+      </div>` : ''}
       <p class="caveats">Soft share = mean probability over snaps. Hard share (most-likely role per snap): ${roles.map(r => `${L[r]} ${Math.round((p.align_hard[r]||0)*100)}%`).join(' · ')}. The gap between the two is how ambiguous his alignments are.</p>
     </div>
     <div class="card">
