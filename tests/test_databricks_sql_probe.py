@@ -107,7 +107,10 @@ def test_azure_service_principal_token_is_fetched_and_cached():
     assert cfg.missing() == []
 
 
-def test_probe_stops_at_the_first_failing_rung_with_a_remedy():
+def test_probe_stops_at_the_first_failing_rung_with_a_remedy(monkeypatch):
+    # the "no credential" branch must not depend on whether this machine has a Databricks/Azure CLI installed
+    monkeypatch.setattr("shutil.which", lambda *_a, **_k: None)
+
     class Denied(FakeSession):
         def get(self, url, **kw):
             raise requests.ConnectionError("CONNECT tunnel failed, response 403")
