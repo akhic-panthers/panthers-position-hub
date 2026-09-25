@@ -1,0 +1,24 @@
+# secrets — never commit
+.env
+.env.*
+!.env.example
+# data — lives in Databricks / PANTHERS_DATA_DIR, never in git
+/data/
+*.parquet
+*.duckdb
+*_NGS_Player_Play/
+derived/
+!data_contracts/**/*.json
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+.venv/
+# outputs
+out/
+viewer/data/*.json
+!viewer/data/.gitkeep

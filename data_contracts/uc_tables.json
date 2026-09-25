@@ -1,0 +1,24 @@
+{
+  "_note": "Pre-discovery contract from the sister project's measurements (2026-08). `poshub discover` writes uc_inventory.json from the live workspace; that file wins on any disagreement.",
+  "workspace": "https://adb-7405617646104787.7.azuredatabricks.net",
+  "catalog": "pff",
+  "schema": "bronze",
+  "volume": "/Volumes/pff/bronze/exports",
+  "tables": {
+    "pffplays": {"rows": 1019359, "grain": "play", "keys": ["pff_GAMEID", "pff_PLAYID"], "gsis_keys": ["pff_GSISGAMEKEY", "pff_GSISPLAYID"], "season": "pff_GAMESEASON"},
+    "pffdefense": {"rows": 9184293, "grain": "defender x play", "keys": ["pff_GAMEID", "pff_PLAYID", "pff_PLAYERID"], "gsis_player": "pff_GSISPLAYERID", "season": null,
+                    "alignment": "pff_POSITION", "usual_position": "pff_GAMEPOSITION", "role": "pff_ROLE", "box": "pff_BOXPLAYER"},
+    "pffoffense": {"rows": 9186059, "grain": "offensive player x play", "season": null},
+    "coverage_defense": {"rows": 1205631, "grain": "defender x pass play", "keys": ["gsis_game_id", "gsis_play_id", "gsis_player_id"], "season": "season", "usable_from": 2019,
+                          "assignment_classes": ["MAN","HOL","CFL","CFR","HCL","HCR","3L","3M","3R","DF","4IL","4IR","4OL","4OR","2L","2R","FL","FR","PRE"],
+                          "match_modifiers": ["MAT","SEA","CAR","TAM"]},
+    "coverage_offense": {"rows": 706174, "missing_seasons": [2022]},
+    "pffplayerblockings": {"rows": 5625517},
+    "pffrosters": {"rows": 709928},
+    "nfl_player": {"rows": 15982},
+    "pffgames": {"rows": 6727}
+  },
+  "ngs_tracking": {"in_unity_catalog": "unknown", "local_layout": "<season>_NGS_Player_Play/<week>/<game_key>.parquet", "seasons": [2022, 2023, 2024, 2025],
+                    "columns": ["game_key","nfl_id","time","team_id","gsis_id","esb_id","player_name","jersey_number","position","position_group","is_on_field","x","y","z","s","a","dis","o","dir","gsis_play_id","event","sa"],
+                    "gaps": ["2024 week 2", "2024 postseason"], "preseason": "different play-level schema, skipped"}
+}

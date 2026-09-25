@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Position Hub — role mix</title>
+<style>
+  :root { --bg:#0b0f14; --panel:#121924; --ink:#e6edf3; --muted:#8a949c; --line:#1f2a37; --blue:#0085CA; --silver:#BFC0BF; --amber:#F59E0B; --green:#10B981; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font: 14px/1.45 -apple-system, "Segoe UI", Inter, Roboto, sans-serif; }
+  header { padding:18px 24px; border-bottom:1px solid var(--line); display:flex; gap:18px; align-items:baseline; flex-wrap:wrap; }
+  header h1 { margin:0; font-size:18px; letter-spacing:.2px; }
+  header .sub { color:var(--muted); }
+  main { display:grid; grid-template-columns: 380px 1fr; gap:0; min-height: calc(100vh - 60px); }
+  aside { border-right:1px solid var(--line); padding:14px; overflow:auto; }
+  section { padding:18px 24px; overflow:auto; }
+  input, select { background:var(--panel); color:var(--ink); border:1px solid var(--line); border-radius:6px; padding:7px 9px; font-size:14px; }
+  .row { display:flex; gap:8px; margin-bottom:10px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 6px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.4px; }
+  tr.pick { cursor:pointer; }
+  tr.pick:hover, tr.sel { background:#16202d; }
+  .card { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; margin-bottom:16px; }
+  .card h2 { margin:0 0 4px; font-size:16px; }
+  .card h3 { margin:14px 0 8px; font-size:13px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; }
+  .bar { display:grid; grid-template-columns: 180px 1fr 64px 76px; gap:10px; align-items:center; margin:5px 0; }
+  .bar .track { height:12px; background:#0f1620; border-radius:6px; overflow:hidden; border:1px solid var(--line); }
+  .bar .fill { height:100%; background:var(--blue); }
+  .bar .fill.resp { background:var(--silver); }
+  .pct { color:var(--muted); font-variant-numeric: tabular-nums; }
+  .pct.hi { color:var(--green); } .pct.lo { color:var(--amber); }
+  .muted { color:var(--muted); }
+  .kv { display:grid; grid-template-columns: repeat(auto-fit, minmax(160px,1fr)); gap:10px; }
+  .kv div { background:#0f1620; border:1px solid var(--line); border-radius:8px; padding:10px 12px; }
+  .kv b { display:block; font-size:18px; font-weight:600; }
+  .caveats { font-size:12px; color:var(--muted); }
+  .caveats li { margin:3px 0; }
+  .gates td.go { color:var(--green); } .gates td.nogo { color:var(--amber); }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } aside { border-right:0; border-bottom:1px solid var(--line); } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Position Hub · what he actually plays</h1>
+  <span class="sub" id="meta">loading data/role_mix.json…</span>
+</header>
+<main>
+  <aside>
+    <div class="row">
+      <input id="q" placeholder="player or team" style="flex:1">
+      <select id="grp"><option value="">all groups</option><option>S</option><option>CB</option><option>LB</option><option>EDGE</option><option>IDL</option><option>DB</option></select>
+    </div>
+    <div class="row"><select id="season" style="flex:1"></select></div>
+    <table id="list"><thead><tr><th>player</th><th>pos</th><th>team</th><th>snaps</th><th>primary role</th></tr></thead><tbody></tbody></table>
+  </aside>
+  <section id="detail"><div class="card"><h2>Pick a player</h2><p class="muted">Role shares are what the tracking says he did on his snaps. They describe; they do not grade.</p></div></section>
+</main>
+<script>
+const fmtPct = v => v == null ? '' : Math.round(v) + (["th","st","nd","rd"][((Math.round(v)%100)-20)%10] || ["th","st","nd","rd"][Math.round(v)%100] || "th");
+const pctClass = v => v == null ? 'pct' : v >= 80 ? 'pct hi' : v <= 20 ? 'pct lo' : 'pct';
+let DATA = null, SEL = null;
+async function load() {
+  const r = await fetch('data/role_mix.json'); DATA = await r.json();
+  const m = DATA.meta;
+  document.getElementById('meta').textContent = `${DATA.players.length} player-seasons · generated ${m.generated_at.slice(0,16).replace('T',' ')} · source ${m.source || '—'}`;
+  const seasons = [...new Set(DATA.players.map(p => p.season))].sort();
+  const ss = document.getElementById('season'); ss.innerHTML = seasons.map(s => `<option>${s}</option>`).join('');
+  ss.value = seasons[seasons.length-1];
+  for (const id of ['q','grp','season']) document.getElementById(id).addEventListener('input', renderList);
+  renderList();
+}
+function renderList() {
+  const q = document.getElementById('q').value.toLowerCase(), g = document.getElementById('grp').value, s = +document.getElementById('season').value;
+  const rows = DATA.players.filter(p => p.season === s && (!g || p.peer_group === g) && (!q || (p.name||'').toLowerCase().includes(q) || (p.team||'').toLowerCase().includes(q)))
+    .sort((a,b) => b.snaps - a.snaps);
+  const tb = document.querySelector('#list tbody');
+  tb.innerHTML = rows.map(p => `<tr class="pick ${SEL && SEL.nfl_id===p.nfl_id ? 'sel':''}" data-id="${p.nfl_id}"><td>${p.name||p.nfl_id}</td><td>${p.roster_pos||''}</td><td>${p.team||''}</td><td>${p.snaps}</td><td>${DATA.meta.roles.labels[p.primary_role]||p.primary_role||''}</td></tr>`).join('');
+  tb.querySelectorAll('tr').forEach(tr => tr.addEventListener('click', () => { SEL = rows.find(p => p.nfl_id == tr.dataset.id); renderDetail(); renderList(); }));
+}
+function bar(label, v, pct, cls='') {
+  return `<div class="bar"><span>${label}</span><div class="track"><div class="fill ${cls}" style="width:${Math.round((v||0)*100)}%"></div></div><span>${Math.round((v||0)*100)}%</span><span class="${pctClass(pct)}" title="percentile within position group and season (more of this job than peers)">${pct==null?'':fmtPct(pct)+' pct'}</span></div>`;
+}
+function renderDetail() {
+  const p = SEL, L = DATA.meta.roles.labels, order = DATA.meta.roles.primary_by_group[p.peer_group] || DATA.meta.roles.align;
+  const roles = [...order, ...DATA.meta.roles.align.filter(r => !order.includes(r))].filter(r => p.align[r] != null);
+  const top = roles.filter(r => p.align[r] >= 0.03).map(r => `${Math.round(p.align[r]*100)}% ${L[r].toLowerCase()}`).join(' · ');
+  document.getElementById('detail').innerHTML = `
+    <div class="card">
+      <h2>${p.name || p.nfl_id} <span class="muted">· ${p.roster_pos||''} · ${p.team||''} · ${p.season}</span></h2>
+      <div class="muted">${top}</div>
+      <div class="kv" style="margin-top:12px">
+        <div><span class="muted">snaps</span><b>${p.snaps}</b></div>
+        <div><span class="muted">pass snap share</span><b>${p.pass_snap_share==null?'—':Math.round(p.pass_snap_share*100)+'%'}</b></div>
+        <div><span class="muted">mean depth at snap</span><b>${p.mean_depth==null?'—':p.mean_depth.toFixed(1)+' yd'}</b><span class="${pctClass(p.pct.mean_depth)}">${p.pct.mean_depth==null?'':fmtPct(p.pct.mean_depth)+' pct'}</span></div>
+        <div><span class="muted">in the box</span><b>${p.box_rate==null?'—':Math.round(p.box_rate*100)+'%'}</b><span class="${pctClass(p.pct.box_rate)}">${p.pct.box_rate==null?'':fmtPct(p.pct.box_rate)+' pct'}</span></div>
+        <div><span class="muted">how many jobs (entropy)</span><b>${p.align_entropy==null?'—':p.align_entropy.toFixed(2)}</b><span class="muted">0 = one spot every snap</span></div>
+        <div><span class="muted">bite at 2 s</span><b>${p.mean_bite_2s==null?'—':(p.mean_bite_2s>0?'+':'')+p.mean_bite_2s.toFixed(2)+' yd'}</b><span class="muted">negative = toward the line</span></div>
+      </div>
+      <h3>Alignment — where he lines up</h3>
+      ${roles.map(r => bar(L[r], p.align[r], p.pct['share_'+r])).join('')}
+      <h3>Responsibility — what he does after the snap</h3>
+      ${DATA.meta.roles.resp.filter(r => p.resp[r] != null).map(r => bar(L[r], p.resp[r], p.pct['resp_'+r], 'resp')).join('')}
+      <p class="caveats">Soft share = mean probability over snaps. Hard share (most-likely role per snap): ${roles.map(r => `${L[r]} ${Math.round((p.align_hard[r]||0)*100)}%`).join(' · ')}. The gap between the two is how ambiguous his alignments are.</p>
+    </div>
+    <div class="card">
+      <h3>Gates on this build</h3>
+      <table class="gates"><thead><tr><th>gate</th><th>value</th><th>bar</th><th>n</th><th>verdict</th></tr></thead><tbody>
+      ${(DATA.meta.gates||[]).map(g => `<tr><td>${g.name}</td><td>${g.value==null?'—':(+g.value).toFixed(3)}</td><td>${g.bar==null?'—':(typeof g.bar==='number'?g.bar.toFixed(3):g.bar)}</td><td>${g.n}</td><td class="${g.pass==null?'':g.pass?'go':'nogo'}">${g.pass==null?'—':g.pass?'GO':'NO-GO'}</td></tr>`).join('')}
+      </tbody></table>
+      <ul class="caveats">${DATA.meta.caveats.map(c => `<li>${c}</li>`).join('')}</ul>
+    </div>`;
+}
+load().catch(e => document.getElementById('meta').textContent = 'could not load data/role_mix.json — run `poshub mix` or `poshub demo` first (' + e + ')');
+</script>
+</body>
+</html>

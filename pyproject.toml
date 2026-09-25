@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "position-hub"
+version = "0.1.0"
+description = "Carolina Panthers — positional role attribution from NGS tracking and PFF charting"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "numpy>=1.26",
+  "polars>=1.0",
+  "pyarrow>=15",
+  "scikit-learn>=1.4",
+  "requests>=2.31",
+]
+
+[project.optional-dependencies]
+databricks = ["databricks-sql-connector>=3.0", "databricks-sdk>=0.30"]
+duckdb = ["duckdb>=1.0"]
+dev = ["pytest>=8", "ruff>=0.5"]
+
+[project.scripts]
+poshub = "position_hub.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py310"
