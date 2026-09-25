@@ -74,13 +74,19 @@ def probe(cfg: DatabricksConfig | None = None, session=None, tables: list[str] |
     # 2 auth
     missing = cfg.missing()
     if missing:
-        rep.add(Rung("auth", False, "no credential in env", f"set {' or '.join(missing)}"))
+        rep.add(Rung("auth", False, "no credential", f"{' or '.join(missing)}"))
         return rep
+    if not (cfg.token or cfg.profile or (cfg.azure_tenant_id and cfg.azure_client_id)) and cfg.has_azure_cli:
+        from .client import _azure_cli_token
+
+        if not _azure_cli_token():
+            rep.add(Rung("auth", False, "Azure CLI present but not logged in", "run `az login` (then it is a token for resource 2ff814a6-… on every call)"))
+            return rep
     try:
         me = uc.whoami()
         rep.add(Rung("auth", True, f"{me.get('user')} ({me.get('display') or 'no display name'})"))
     except DatabricksAuthError as e:
-        rep.add(Rung("auth", False, str(e)[:160], "token rejected: regenerate the PAT (User settings → Developer → Access tokens), "
+        rep.add(Rung("auth", False, str(e)[:160], "token rejected: `az login` again (Azure CLI), or regenerate the PAT, "
                                                  "or add the service principal to the workspace"))
         return rep
     except DatabricksUnreachable as e:

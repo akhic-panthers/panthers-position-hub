@@ -22,11 +22,12 @@ databricks probe · https://adb-7405617646104787.7.azuredatabricks.net
 
 | where you run | credential | env |
 |---|---|---|
-| your laptop | OAuth, browser login: `pip install databricks-sdk && databricks auth login --host <workspace>` | `DATABRICKS_HOST`, optional `DATABRICKS_CONFIG_PROFILE` |
+| your laptop (the PanthersScout way) | **Azure CLI**: `az login` once; the client asks `az account get-access-token --resource 2ff814a6-3304-4ab8-85cb-cd0e6f879c1d` on every call | `DATABRICKS_HOST` only |
+| your laptop, no Azure CLI | OAuth, browser login: `pip install databricks-sdk && databricks auth login --host <workspace>` | `DATABRICKS_HOST`, optional `DATABRICKS_CONFIG_PROFILE` |
 | a headless box, a Claude cloud session | personal access token (User settings → Developer → Access tokens → Generate) | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | a service, CI | Azure service principal added to the workspace (Admin → Identity → Service principals) | `DATABRICKS_HOST`, `ARM_TENANT_ID`, `ARM_CLIENT_ID`, `ARM_CLIENT_SECRET` |
 
-The client tries them in the order PAT → service principal → SDK chain. The service-principal path is pure
+The client tries them in the order PAT → service principal → Azure CLI → SDK chain. The service-principal path is pure
 `requests` against `login.microsoftonline.com` for the fixed Azure Databricks resource id
 `2ff814a6-3304-4ab8-85cb-cd0e6f879c1d`; no CLI needed.
 

@@ -122,7 +122,7 @@ def test_probe_stops_at_the_first_failing_rung_with_a_remedy():
     assert "regenerate the PAT" in rep.rungs[1].remedy
 
     rep = probe(DatabricksConfig(host=HOST, token=""), session=s)
-    assert rep.rungs[1].detail == "no credential in env"
+    assert rep.rungs[1].detail == "no credential"
 
 
 def test_probe_full_ladder_against_fakes():
@@ -156,3 +156,33 @@ def test_probe_full_ladder_against_fakes():
     assert rep.ok is False
     d = rep.to_dict()
     assert json.dumps(d) and d["rungs"][0]["name"] == "host"
+
+
+def test_azure_cli_token_is_used_when_no_pat_or_sp(monkeypatch):
+    """`az login` then nothing else: the chain must call `az account get-access-token` for the
+    Databricks resource, cache it, and send it as Bearer."""
+    import subprocess
+    import types
+
+    C._AAD_CACHE.clear()
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        return types.SimpleNamespace(returncode=0, stdout=json.dumps({"accessToken": "cli-tok", "expires_in": 3000}), stderr="")
+    monkeypatch.setattr(C.shutil, "which", lambda name: "/usr/bin/az" if name == "az" else None)
+    monkeypatch.setattr(C.subprocess, "run", fake_run)
+    cfg = DatabricksConfig(host=HOST, token="", http_path="/sql/1.0/warehouses/abc123")
+    assert cfg.missing() == []
+    s = FakeSession({"/scim/v2/Me": FakeResp(200, {"userName": "akhi@panthers.nfl.com"})})
+    uc = C.UnityCatalogClient(cfg, session=s)
+    assert uc.whoami()["user"] == "akhi@panthers.nfl.com"
+    uc.whoami()
+    assert len(calls) == 1 and calls[0][1:5] == ["account", "get-access-token", "--resource", C.AZURE_DATABRICKS_RESOURCE]
+    assert s.calls[0][2]["headers"]["Authorization"] == "Bearer cli-tok"
+
+    # not logged in → the probe names it rather than failing on a 401
+    C._AAD_CACHE.clear()
+    monkeypatch.setattr(C.subprocess, "run", lambda cmd, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="Please run 'az login'"))
+    rep = probe(cfg, session=FakeSession({"unity-catalog/catalogs": FakeResp(401, {})}))
+    assert rep.rungs[-1].name == "auth" and rep.rungs[-1].ok is False and "az login" in rep.rungs[-1].remedy

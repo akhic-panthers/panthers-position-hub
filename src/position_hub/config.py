@@ -71,12 +71,19 @@ class DatabricksConfig:
     def configured(self) -> bool:
         return bool(self.host)
 
+    @property
+    def has_azure_cli(self) -> bool:
+        import shutil
+
+        return shutil.which("az") is not None
+
     def missing(self) -> list[str]:
         m = []
         if not self.host:
             m.append("DATABRICKS_HOST")
-        if not self.token and not self.profile and not (self.azure_tenant_id and self.azure_client_id and self.azure_client_secret):
-            m.append("DATABRICKS_TOKEN (or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET, or DATABRICKS_CONFIG_PROFILE)")
+        if not (self.token or self.profile or self.has_azure_cli
+                or (self.azure_tenant_id and self.azure_client_id and self.azure_client_secret)):
+            m.append("a credential: `az login`, or DATABRICKS_TOKEN, or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET, or DATABRICKS_CONFIG_PROFILE")
         return m
 
 
