@@ -27,6 +27,10 @@ class FakeResp:
             raise ValueError("not json")
         return self._body if not isinstance(self._body, str) else json.loads(self._body)
 
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise requests.HTTPError(f"HTTP {self.status_code}")
+
 
 class FakeSession:
     def __init__(self, routes):

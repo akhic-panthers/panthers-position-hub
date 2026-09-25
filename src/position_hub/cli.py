@@ -2,6 +2,8 @@
 be re-run alone (features are the expensive part; roles are cheap to re-score).
 
     poshub status                         what is reachable: Databricks, local export, Thunder, OpenField
+    poshub probe                          the Databricks connection ladder: host → auth → catalog → warehouse → SQL → tables
+    poshub sql "SELECT ..."               one statement through the SQL warehouse
     poshub discover                       write data_contracts/uc_inventory.json from Unity Catalog
     poshub features  --seasons 2024 2025  NGS + PFF → out/features.parquet   (one row per defender-snap)
     poshub fit       --holdout-weeks 17 18 fit the two role models → out/model.pkl
@@ -36,6 +38,26 @@ def cmd_status(a) -> int:
     if not a.offline:
         print(f"thunder      {ThunderClient().status()}")
         print(f"openfield    {OpenFieldClient().probe()}")
+    return 0
+
+
+def cmd_probe(a) -> int:
+    from .databricks.probe import probe
+
+    rep = probe()
+    print(rep.format())
+    if a.json:
+        Path(a.json).write_text(json.dumps(rep.to_dict(), indent=2))
+    return 0 if rep.ok else 2
+
+
+def cmd_sql(a) -> int:
+    from .databricks.client import DatabricksSQL
+
+    df = DatabricksSQL().query(a.statement)
+    print(df)
+    if a.out_file:
+        df.write_parquet(a.out_file)
     return 0
 
 
@@ -191,6 +213,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default="out")
     sub = p.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("status"); s.add_argument("--offline", action="store_true"); s.set_defaults(fn=cmd_status)
+    s = sub.add_parser("probe"); s.add_argument("--json"); s.set_defaults(fn=cmd_probe)
+    s = sub.add_parser("sql"); s.add_argument("statement"); s.add_argument("--out-file"); s.set_defaults(fn=cmd_sql)
     s = sub.add_parser("discover"); s.add_argument("--out-file", default="data_contracts/uc_inventory.json"); s.add_argument("--catalog"); s.set_defaults(fn=cmd_discover)
     s = sub.add_parser("features"); s.add_argument("--seasons", type=int, nargs="+", default=[2024, 2025]); s.add_argument("--weeks", type=int, nargs="*")
     s.add_argument("--max-games", type=int); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_features)

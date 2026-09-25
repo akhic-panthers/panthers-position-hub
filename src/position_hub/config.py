@@ -61,6 +61,9 @@ class DatabricksConfig:
     token: str = field(default_factory=lambda: _env("DATABRICKS_TOKEN"))
     http_path: str = field(default_factory=lambda: _env("DATABRICKS_HTTP_PATH"))
     profile: str = field(default_factory=lambda: _env("DATABRICKS_CONFIG_PROFILE"))
+    azure_tenant_id: str = field(default_factory=lambda: _env("ARM_TENANT_ID"))
+    azure_client_id: str = field(default_factory=lambda: _env("ARM_CLIENT_ID"))
+    azure_client_secret: str = field(default_factory=lambda: _env("ARM_CLIENT_SECRET"))
     volume: str = field(default_factory=lambda: _env("POSHUB_UC_VOLUME", "/Volumes/pff/bronze/exports"))
     timeout_s: int = 60
 
@@ -72,8 +75,8 @@ class DatabricksConfig:
         m = []
         if not self.host:
             m.append("DATABRICKS_HOST")
-        if not self.token and not self.profile:
-            m.append("DATABRICKS_TOKEN (or DATABRICKS_CONFIG_PROFILE)")
+        if not self.token and not self.profile and not (self.azure_tenant_id and self.azure_client_id and self.azure_client_secret):
+            m.append("DATABRICKS_TOKEN (or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET, or DATABRICKS_CONFIG_PROFILE)")
         return m
 
 

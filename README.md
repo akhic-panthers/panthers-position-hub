@@ -39,6 +39,7 @@ On a machine that holds the tracking (`PANTHERS_DATA_DIR/<season>_NGS_Player_Pla
 
 ```bash
 poshub status                      # Databricks reachable? local export? Thunder? OpenField?
+poshub probe                       # host → auth → catalog → warehouse → SQL → tables, with the remedy for the first failure
 poshub discover                    # → data_contracts/uc_inventory.json (catalogs, tables, columns, NGS candidates)
 poshub features --seasons 2024 2025          # NGS + PFF → out/features.parquet
 poshub fit --holdout-weeks 17 18             # → out/model.pkl (held out by GAME)
@@ -54,6 +55,7 @@ workspace first; it writes the charted half of the snap table to `/Volumes/pff/b
 2. `docs/02_role_taxonomy.md` — the registered role vocabulary and every threshold.
 3. `docs/REGISTERED_role_attribution_v1.md` — the gates, written before any real snap is scored.
 4. `docs/01_data_contract.md` — Databricks names, NGS schema, join spine, landmines.
+   `docs/03_databricks_setup.md` — how to authenticate from a laptop, a container, or CI, and what each probe rung means.
 5. `docs/paper_notes/eager_seth_2023.md` — Eric's paper and what is taken from it.
 
 ## Layout

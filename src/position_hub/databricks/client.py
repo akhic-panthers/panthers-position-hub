@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,9 +43,33 @@ class DatabricksAuthError(DatabricksError):
 
 
 # ── auth ─────────────────────────────────────────────────────────────────────────────────────────
-def _bearer(cfg: DatabricksConfig) -> dict[str, str]:
+AZURE_DATABRICKS_RESOURCE = "2ff814a6-3304-4ab8-85cb-cd0e6f879c1d"   # fixed AAD app id of Azure Databricks
+_AAD_CACHE: dict[str, tuple[float, str]] = {}
+
+
+def _azure_sp_token(tenant: str, client_id: str, client_secret: str, session: requests.Session | None = None) -> str:
+    """Azure AD client-credentials token for the Azure Databricks resource. Pure requests, so a
+    headless container with ARM_TENANT_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET needs no CLI or SDK.
+    The service principal must be added to the workspace (Admin settings → Identity → Service principals)."""
+    key = f"{tenant}:{client_id}"
+    exp, tok = _AAD_CACHE.get(key, (0.0, ""))
+    if tok and time.time() < exp - 60:
+        return tok
+    r = (session or requests).post(f"https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token",
+                                    data={"grant_type": "client_credentials", "client_id": client_id, "client_secret": client_secret,
+                                          "scope": f"{AZURE_DATABRICKS_RESOURCE}/.default"}, timeout=30)
+    if r.status_code >= 400:
+        raise DatabricksAuthError(f"Azure AD token request failed: HTTP {r.status_code}: {r.text[:200]}")
+    j = r.json()
+    _AAD_CACHE[key] = (time.time() + float(j.get("expires_in", 3600)), j["access_token"])
+    return j["access_token"]
+
+
+def _bearer(cfg: DatabricksConfig, session: requests.Session | None = None) -> dict[str, str]:
     if cfg.token:
         return {"Authorization": f"Bearer {cfg.token}"}
+    if cfg.azure_tenant_id and cfg.azure_client_id and cfg.azure_client_secret:
+        return {"Authorization": f"Bearer {_azure_sp_token(cfg.azure_tenant_id, cfg.azure_client_id, cfg.azure_client_secret, session)}"}
     # Fall back to the SDK credential chain (OAuth U2M, Azure CLI, profile). Optional dependency.
     try:
         from databricks.sdk.core import Config  # type: ignore
@@ -56,8 +81,8 @@ def _bearer(cfg: DatabricksConfig) -> dict[str, str]:
         return dict(c.authenticate())
     except ImportError as e:  # pragma: no cover - depends on environment
         raise DatabricksAuthError(
-            "no DATABRICKS_TOKEN and databricks-sdk is not installed; "
-            "set a PAT or `pip install databricks-sdk` and `databricks auth login --host <host>`"
+            "no credential: set DATABRICKS_TOKEN (PAT), or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET "
+            "(Azure service principal), or `pip install databricks-sdk` and `databricks auth login --host <host>`"
         ) from e
     except Exception as e:  # pragma: no cover
         raise DatabricksAuthError(f"databricks-sdk could not authenticate: {e}") from e
@@ -77,7 +102,7 @@ class UnityCatalogClient:
         if not self.cfg.host:
             raise DatabricksError("DATABRICKS_HOST is not set")
         try:
-            r = self.s.get(self._url(path), headers=_bearer(self.cfg), params=params, timeout=self.cfg.timeout_s)
+            r = self.s.get(self._url(path), headers=_bearer(self.cfg, self.s), params=params, timeout=self.cfg.timeout_s)
         except requests.RequestException as e:
             raise DatabricksUnreachable(f"cannot reach {self.cfg.host}: {e}") from e
         if r.status_code in (401, 403):
@@ -108,6 +133,31 @@ class UnityCatalogClient:
         except requests.RequestException as e:
             return False, f"{type(e).__name__}: {e}"
 
+    def whoami(self) -> dict:
+        """The identity the token resolves to (SCIM Me). Auth check that needs no catalog grants."""
+        try:
+            r = self.s.get(f"{self.cfg.host}/api/2.0/preview/scim/v2/Me", headers=_bearer(self.cfg, self.s), timeout=self.cfg.timeout_s)
+        except requests.RequestException as e:
+            raise DatabricksUnreachable(str(e)) from e
+        if r.status_code in (401, 403):
+            raise DatabricksAuthError(f"HTTP {r.status_code}: {r.text[:200]}")
+        r.raise_for_status()
+        j = r.json()
+        return {"user": j.get("userName"), "display": j.get("displayName"), "active": j.get("active")}
+
+    def warehouses(self) -> list[dict]:
+        """SQL warehouses visible to this identity: id, name, state, http_path."""
+        try:
+            r = self.s.get(f"{self.cfg.host}/api/2.0/sql/warehouses", headers=_bearer(self.cfg, self.s), timeout=self.cfg.timeout_s)
+        except requests.RequestException as e:
+            raise DatabricksUnreachable(str(e)) from e
+        if r.status_code in (401, 403):
+            raise DatabricksAuthError(f"HTTP {r.status_code}: {r.text[:200]}")
+        r.raise_for_status()
+        return [{"id": w["id"], "name": w.get("name"), "state": w.get("state"),
+                 "http_path": (w.get("odbc_params") or {}).get("path") or f"/sql/1.0/warehouses/{w['id']}"}
+                for w in r.json().get("warehouses", [])]
+
     # -- metadata
     def catalogs(self) -> list[dict]:
         return list(self._paged("catalogs", "catalogs"))
@@ -132,19 +182,35 @@ class UnityCatalogClient:
 
 
 # ── SQL: Statement Execution API (pure requests) or databricks-sql-connector ────────────────────
+INLINE_ROW_LIMIT = 50_000     # below this, ask for INLINE JSON (one round trip, no cloud-storage host needed)
+
+
 class DatabricksSQL:
     def __init__(self, cfg: DatabricksConfig | None = None, session: requests.Session | None = None):
         self.cfg = cfg or DatabricksConfig()
         self.s = session or requests.Session()
         if not self.cfg.http_path:
-            raise DatabricksError("DATABRICKS_HTTP_PATH (SQL warehouse) is required for SQL reads")
+            # no warehouse named: take the one that is running (or the only one) and say which
+            ws = UnityCatalogClient(self.cfg, self.s).warehouses()
+            running = [w for w in ws if w["state"] == "RUNNING"] or ws
+            if not running:
+                raise DatabricksError("DATABRICKS_HTTP_PATH is unset and this identity sees no SQL warehouse")
+            self.cfg.http_path = running[0]["http_path"]
+            self.picked_warehouse = running[0]
         self.warehouse_id = self.cfg.http_path.rstrip("/").split("/")[-1]
 
-    def query(self, sql: str, *, wait_s: int = 600) -> pl.DataFrame:
+    def query(self, sql: str, *, wait_s: int = 600, inline: bool | None = None) -> pl.DataFrame:
+        """`inline=None` picks INLINE for statements with a small LIMIT, EXTERNAL_LINKS otherwise.
+        External links are presigned cloud-storage URLs (Azure blob/dfs hosts), which a locked-down
+        network must also allow; inline needs only the workspace host."""
         try:
             return self._query_connector(sql)
         except ImportError:
-            return self._query_rest(sql, wait_s=wait_s)
+            pass
+        if inline is None:
+            m = re.search(r"\bLIMIT\s+(\d+)\s*$", sql.strip(), re.I)
+            inline = bool(m and int(m.group(1)) <= INLINE_ROW_LIMIT)
+        return self._query_rest(sql, wait_s=wait_s, inline=inline)
 
     # connector path
     def _query_connector(self, sql: str) -> pl.DataFrame:
@@ -161,7 +227,7 @@ class DatabricksSQL:
     # REST path
     def _post(self, path: str, body: dict) -> dict:
         try:
-            r = self.s.post(f"{self.cfg.host}{path}", headers=_bearer(self.cfg), json=body, timeout=self.cfg.timeout_s)
+            r = self.s.post(f"{self.cfg.host}{path}", headers=_bearer(self.cfg, self.s), json=body, timeout=self.cfg.timeout_s)
         except requests.RequestException as e:
             raise DatabricksUnreachable(str(e)) from e
         if r.status_code in (401, 403):
@@ -171,14 +237,14 @@ class DatabricksSQL:
         return r.json()
 
     def _get(self, path: str) -> dict:
-        r = self.s.get(f"{self.cfg.host}{path}", headers=_bearer(self.cfg), timeout=self.cfg.timeout_s)
+        r = self.s.get(f"{self.cfg.host}{path}", headers=_bearer(self.cfg, self.s), timeout=self.cfg.timeout_s)
         if r.status_code >= 400:
             raise DatabricksError(f"HTTP {r.status_code}: {r.text[:300]}")
         return r.json()
 
-    def _query_rest(self, sql: str, *, wait_s: int) -> pl.DataFrame:
-        body = {"warehouse_id": self.warehouse_id, "statement": sql, "wait_timeout": "50s",
-                "format": "ARROW_STREAM", "disposition": "EXTERNAL_LINKS"}
+    def _query_rest(self, sql: str, *, wait_s: int, inline: bool = False) -> pl.DataFrame:
+        body = {"warehouse_id": self.warehouse_id, "statement": sql, "wait_timeout": "50s", "on_wait_timeout": "CONTINUE"}
+        body.update({"format": "JSON_ARRAY", "disposition": "INLINE"} if inline else {"format": "ARROW_STREAM", "disposition": "EXTERNAL_LINKS"})
         j = self._post("/api/2.0/sql/statements", body)
         sid = j["statement_id"]
         t0 = time.time()
@@ -189,7 +255,28 @@ class DatabricksSQL:
             j = self._get(f"/api/2.0/sql/statements/{sid}")
         if j["status"]["state"] != "SUCCEEDED":
             raise DatabricksError(f"statement failed: {json.dumps(j['status'])[:400]}")
-        return self._collect_external_links(j)
+        return self._collect_inline(j) if inline else self._collect_external_links(j)
+
+    def _collect_inline(self, j: dict) -> pl.DataFrame:
+        """INLINE JSON_ARRAY: every value is a string (or null); cast from the manifest types."""
+        manifest = j["manifest"]
+        cols = manifest["schema"]["columns"]
+        rows = list(j.get("result", {}).get("data_array", []) or [])
+        for ch in manifest.get("chunks", [])[1:]:
+            r = self._get(f"/api/2.0/sql/statements/{j['statement_id']}/result/chunks/{ch['chunk_index']}")
+            rows.extend(r.get("data_array", []) or [])
+        data = {c["name"]: [row[i] for row in rows] for i, c in enumerate(cols)}
+        df = pl.DataFrame(data, schema={c["name"]: pl.Utf8 for c in cols})
+        casts = []
+        for c in cols:
+            t = (c.get("type_name") or "").upper()
+            if t in ("INT", "SMALLINT", "TINYINT", "BIGINT", "LONG"):
+                casts.append(pl.col(c["name"]).cast(pl.Int64, strict=False))
+            elif t in ("FLOAT", "DOUBLE", "DECIMAL"):
+                casts.append(pl.col(c["name"]).cast(pl.Float64, strict=False))
+            elif t == "BOOLEAN":
+                casts.append(pl.col(c["name"]).str.to_lowercase().eq("true").alias(c["name"]))
+        return df.with_columns(casts) if casts else df
 
     def _collect_external_links(self, j: dict) -> pl.DataFrame:
         import pyarrow as pa
