@@ -75,17 +75,18 @@ def cmd_discover(a) -> int:
 def _process_game(args: tuple) -> "pl.DataFrame | None":
     """Top-level so ProcessPoolExecutor can pickle it. One game file → per-defender features."""
     path, season, week = args
-    from .ngs.features import defender_features_for_game
+    from .ngs.features import game_features
     from .ngs.loader import load_game
 
     try:
         g = load_game(path)
-        f = defender_features_for_game(g)
+        f, o = game_features(g)
     except Exception as e:  # a broken game file is a fact to report, not a reason to lose the run
         return pl.DataFrame({"_error": [f"{path}: {type(e).__name__}: {str(e)[:200]}"], "season": [season], "week": [week]})
     if f.height == 0:
         return None
-    return f.with_columns(pl.lit(season).alias("season"), pl.lit(week).alias("week"))
+    tag = [pl.lit(season).alias("season"), pl.lit(week).alias("week")]
+    return f.with_columns(tag), (o.with_columns(tag) if o.height else None)
 
 
 def cmd_features(a) -> int:
@@ -101,10 +102,23 @@ def cmd_features(a) -> int:
     out.mkdir(parents=True, exist_ok=True)
     src = get_source(a.source)
     print(f"source: {src.describe()}")
-    plays = load_play_context(src, a.seasons)
+    cache = out / "cache"
+    cache.mkdir(parents=True, exist_ok=True)
+    tag = "_".join(str(s) for s in a.seasons)
+
+    def cached(name: str, fn):
+        """Charting pulls are cached under <out>/cache (gitignored): a failure downstream never re-downloads a season."""
+        p = cache / f"{name}_{tag}.parquet"
+        if p.exists() and not a.refresh:
+            return pl.read_parquet(p)
+        df = fn()
+        df.write_parquet(p)
+        return df
+
+    plays = cached("pffplays", lambda: load_play_context(src, a.seasons))
     print(f"pffplays: {plays.height:,} plays, seasons {sorted(plays['season'].unique().to_list())}")
-    dsnaps = load_defender_snaps(src, plays)
-    cov = load_coverage_assignments(src, a.seasons)
+    dsnaps = cached("pffdefense", lambda: load_defender_snaps(src, plays))
+    cov = cached("coverage_defense", lambda: load_coverage_assignments(src, a.seasons))
     print(f"pffdefense: {dsnaps.height:,} defender-snaps · coverage_defense: {cov.height:,} rows")
     root = LocalDataConfig().root
     jobs = []
@@ -122,7 +136,7 @@ def cmd_features(a) -> int:
         print("no tracking games found under", root, "— set PANTHERS_DATA_DIR or POSHUB_TABLE_NGS_TRACKING", file=sys.stderr)
         return 2
     workers = a.workers or max(1, min(8, (os.cpu_count() or 2) - 1))
-    frames, errors, done = [], [], 0
+    frames, off_frames, errors, done = [], [], [], 0
     print(f"  {len(jobs)} games on {workers} workers")
     with ProcessPoolExecutor(max_workers=workers) as ex:
         futs = {ex.submit(_process_game, j): j for j in jobs}
@@ -131,10 +145,13 @@ def cmd_features(a) -> int:
             done += 1
             if r is None:
                 continue
-            if "_error" in r.columns:
+            if isinstance(r, pl.DataFrame) and "_error" in r.columns:
                 errors.append(r["_error"][0])
             else:
-                frames.append(r)
+                d, o = r
+                frames.append(d)
+                if o is not None:
+                    off_frames.append(o)
             if done % 25 == 0 or done == len(jobs):
                 print(f"  {done}/{len(jobs)} games · {sum(f.height for f in frames):,} defender-snaps · {len(errors)} errors", flush=True)
     if errors:
@@ -143,13 +160,55 @@ def cmd_features(a) -> int:
     if not frames:
         return 2
     feats = pl.concat(frames, how="diagonal_relaxed")
+    if off_frames:
+        pl.concat(off_frames, how="diagonal_relaxed").write_parquet(out / "offense_alignment.parquet")
+    # ── the population is PFF's offense/defense plays. Tracking has kickoffs, punts, field goals, kneels too;
+    #    those leave here LOUDLY (counted), never silently.
+    spine = plays.select("game_key", "gsis_play_id").unique()
+    # pffplays also carries kicks, punts and no-plays (pff_RUNPASS empty); the population is run + pass plays
+    od = plays.filter(pl.col("is_pass") | pl.col("is_run")).select("game_key", "gsis_play_id").unique() if "is_run" in plays.columns else spine
+    trk_plays = feats.select("game_key", "gsis_play_id").unique()
+    in_pff = trk_plays.join(spine, on=["game_key", "gsis_play_id"], how="semi").height
+    games_trk = feats.get_column("game_key").unique().to_list()
+    od_same_games = od.filter(pl.col("game_key").is_in(games_trk))
+    od_in_trk = od_same_games.join(trk_plays, on=["game_key", "gsis_play_id"], how="semi").height
+    print(f"  play spine: tracking plays with a snap {trk_plays.height:,}; in pffplays {in_pff:,} ({in_pff / max(trk_plays.height, 1):.1%}); "
+          f"PFF run+pass plays in these games {od_same_games.height:,}, with a tracked snap {od_in_trk:,} ({od_in_trk / max(od_same_games.height, 1):.1%}) "
+          f"— the gap is plays with no ball_snap event in the frames (report it; do not paper over it)")
+    feats = feats.join(spine, on=["game_key", "gsis_play_id"], how="semi")
     feats = feats.join(dsnaps.select("game_key", "gsis_play_id", "nfl_id", "pff_alignment", "pff_align_family", "pff_game_position",
-                                     "pff_in_box", "pff_ROLE").unique(["game_key", "gsis_play_id", "nfl_id"]),
+                                     "pff_in_box", "pff_ROLE", "pff_PLAYERNAME").unique(["game_key", "gsis_play_id", "nfl_id"]),
                        on=["game_key", "gsis_play_id", "nfl_id"], how="left")
-    feats = feats.join(cov.select("game_key", "gsis_play_id", "nfl_id", "cov_alignment", "assignment", "responsibility").unique(["game_key", "gsis_play_id", "nfl_id"]),
+    feats = feats.join(cov.select("game_key", "gsis_play_id", "nfl_id", "cov_alignment", "assignment", "modifier1", "responsibility").unique(["game_key", "gsis_play_id", "nfl_id"]),
                        on=["game_key", "gsis_play_id", "nfl_id"], how="left")
-    ctx_cols = [c for c in ("game_key", "gsis_play_id", "is_pass", "is_play_action", "pff_PASSCOVERAGE", "pff_BOXPLAYERS", "pff_DOWN", "pff_DISTANCE") if c in plays.columns]
+    ctx_cols = [c for c in ("game_key", "gsis_play_id", "is_pass", "is_run", "is_play_action", "is_rpo", "is_blitz", "pff_PASSCOVERAGE", "pff_MOFOCSHOWN",
+                            "pff_MOFOCPLAYED", "pff_BOXPLAYERS", "pff_DOWN", "pff_DISTANCE", "pff_DEFTEAM", "pff_OFFTEAM", "pff_DEFPERSONNEL",
+                            "pff_DROPBACKTYPE", "pff_RUNCONCEPTPRIMARY", "pff_RBDIRECTION", "pff_SHOTGUN") if c in plays.columns]
     feats = feats.join(plays.select(ctx_cols).unique(["game_key", "gsis_play_id"]), on=["game_key", "gsis_play_id"], how="left")
+    if "pff_DEFTEAM" in feats.columns:   # people read team codes, not NGS team ids
+        feats = feats.with_columns(pl.coalesce([pl.col("pff_DEFTEAM"), pl.col("defense_team")]).alias("defense_team"),
+                                   pl.coalesce([pl.col("pff_OFFTEAM"), pl.col("offense_team")]).alias("offense_team"))
+    if "pff_PLAYERNAME" in feats.columns:
+        feats = feats.with_columns(pl.coalesce([pl.col("player_name"), pl.col("pff_PLAYERNAME")]).alias("player_name")).drop("pff_PLAYERNAME")
+    # responsibility truth = PFF charting from BOTH tables: coverage_defense.assignment for coverage players (it never
+    # charts the rush: PRE is a blitzing coverage man, 0.4% of rows), pffdefense.pff_ROLE for rushers on pass plays
+    # and for everyone on run plays. `responsibility_source` says which one each snap came from.
+    if "pff_ROLE" in feats.columns:
+        role = pl.col("pff_ROLE")
+        from_role = (pl.when(pl.col("is_pass") & (role == "Pass Rush")).then(pl.lit("RUSH"))
+                     .when(pl.col("is_run") & (role == "Run Defense")).then(pl.lit("RUN_FIT")).otherwise(None))
+        feats = feats.with_columns(
+            pl.when(pl.col("responsibility").is_not_null()).then(pl.lit("coverage_defense"))
+            .when(from_role.is_not_null()).then(pl.lit("pffdefense.pff_ROLE")).otherwise(None).alias("responsibility_source"),
+            pl.coalesce([pl.col("responsibility"), from_role]).alias("responsibility"))
+    # ── NGS play-level product (Unity Catalog only): the ball at the snap, the league's direction, depth and role — a CHECK
+    if not a.no_ngs_play_level and src.mode == "databricks":
+        from .ngs.play_level import load_ngs_play_level
+
+        ngs = cached("ngs_player_play", lambda: load_ngs_play_level(src, a.seasons))
+        if ngs.height:
+            feats = feats.join(ngs, on=["game_key", "gsis_play_id", "nfl_id"], how="left")
+            print(f"  ngsdb.bronze.player_play: {ngs.height:,} defender rows, joined {feats['ngs_role'].is_not_null().mean():.1%} of defender-snaps")
     feats = add_rule_roles(feats)
     feats.write_parquet(out / "features.parquet")
     print(f"wrote {out / 'features.parquet'}: {feats.height:,} defender-snaps, PFF join {feats['pff_alignment'].is_not_null().mean():.1%}, "
@@ -202,6 +261,15 @@ def cmd_summarize(a) -> int:
     md = "\n".join(lines) + "\n"
     Path(a.run_dir).mkdir(parents=True, exist_ok=True)
     (Path(a.run_dir) / "summary.md").write_text(md)
+    print(md)
+    return 0
+
+
+def cmd_verify(a) -> int:
+    """Phase-1 plumbing checks on real frames → <run-dir>/verify.md (aggregates only)."""
+    from .eval.verify import verify
+
+    md = verify(Path(a.out) / "features.parquet", Path(a.run_dir) / "verify.md", title=a.out)
     print(md)
     return 0
 
@@ -303,8 +371,11 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("sql"); s.add_argument("statement"); s.add_argument("--out-file"); s.set_defaults(fn=cmd_sql)
     s = sub.add_parser("discover"); s.add_argument("--out-file", default="data_contracts/uc_inventory.json"); s.add_argument("--catalog"); s.set_defaults(fn=cmd_discover)
     s = sub.add_parser("features"); s.add_argument("--seasons", type=int, nargs="+", default=[2024, 2025]); s.add_argument("--weeks", type=int, nargs="*")
-    s.add_argument("--max-games", type=int); s.add_argument("--workers", type=int); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_features)
+    s.add_argument("--max-games", type=int); s.add_argument("--workers", type=int); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"])
+    s.add_argument("--no-ngs-play-level", action="store_true", help="skip the ngsdb.bronze.player_play validation join")
+    s.add_argument("--refresh", action="store_true", help="ignore <out>/cache and re-pull the charting tables"); s.set_defaults(fn=cmd_features)
     s = sub.add_parser("summarize"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_summarize)
+    s = sub.add_parser("verify"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_verify)
     s = sub.add_parser("fit"); s.add_argument("--holdout-weeks", type=int, nargs="*", default=[17, 18]); s.add_argument("--seed", type=int, default=0); s.set_defaults(fn=cmd_fit)
     s = sub.add_parser("score"); s.set_defaults(fn=cmd_score)
     s = sub.add_parser("mix"); s.add_argument("--min-snaps", type=int, default=100); s.add_argument("--min-snaps-pct", type=int, default=200)

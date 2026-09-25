@@ -44,6 +44,21 @@ PFF_TABLE_NAMES = ["pffplays", "pffoffense", "pffdefense", "pffgames", "pffroste
                    "pffquarterbackchartings", "nfl_player", "season_grade", "game_grade", "pff_teams"]
 PFF_TABLES: dict[str, str] = {t: f"{PFF_CATALOG}.{PFF_SCHEMA}.{t}" for t in PFF_TABLE_NAMES}
 
+# NGS in Unity Catalog — found by `poshub discover` 2026-09-25 (data_contracts/uc_inventory.json).
+#   player_play          play-level, 114 cols, REG+POST 2016–2025 (+2026 in progress): x/y at snap, the BALL at the
+#                        snap (x_ball_at_snap, y_ball_at_snap), depth_from_los_at_snap, Play_Direction, and NGS's own
+#                        per-snap defender role `ngs_position` (CB SLOT_CB HIGH_SAFETY BOX_SAFETY MLB OLB EDGE INTERIOR_LINE)
+#   player_position      frame-level tracking, same columns as the per-game parquet on the Mac (~680M rows/season)
+#   ball_position_data   frame-level BALL track (2,898 games) — NGS does have a ball, just not in the per-game export
+#   plays                play table with play_type, EPA, WP
+NGS_CATALOG = "ngsdb"
+NGS_TABLES: dict[str, str] = {
+    "ngs_player_play": f"{NGS_CATALOG}.bronze.player_play",
+    "ngs_player_position": f"{NGS_CATALOG}.bronze.player_position",
+    "ngs_ball_position": f"{NGS_CATALOG}.bronze.ball_position_data",
+    "ngs_plays": f"{NGS_CATALOG}.bronze.plays",
+}
+
 
 def table_name(logical: str) -> str:
     """Three-part UC name for a logical table; env override wins."""
@@ -52,6 +67,8 @@ def table_name(logical: str) -> str:
         return override
     if logical in PFF_TABLES:
         return PFF_TABLES[logical]
+    if logical in NGS_TABLES:
+        return NGS_TABLES[logical]
     raise KeyError(f"unknown logical table {logical!r}; set POSHUB_TABLE_{logical.upper()}")
 
 

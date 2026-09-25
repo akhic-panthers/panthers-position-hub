@@ -91,6 +91,22 @@ def defender_features_for_play(pf: PlayFrame) -> pl.DataFrame:
     qb2 = at2.filter(pl.col("nfl_id") == pf.qb_id) if pf.qb_id else None
     rec2 = at2.filter(pl.col("nfl_id").is_in(rid.tolist())) if rec.height else None
 
+    # width rank per side of the ball: 1 = the widest defender on his side (a corner, usually)
+    dy = dfd["y"].to_numpy()
+    width_rank = np.zeros(len(dy), dtype=int)
+    for side_mask in (dy >= 0, dy < 0):
+        idx = np.where(side_mask)[0]
+        order = np.argsort(-np.abs(dy[idx]), kind="stable")
+        width_rank[idx[order]] = np.arange(1, len(idx) + 1)
+    n_deep_line_set = None
+    if at_ls is not None:
+        ls_def = at_ls.filter(~pl.col("is_offense"))
+        if ls_def.height:
+            n_deep_line_set = int((ls_def["x"].to_numpy() >= DEEP_DEPTH).sum())
+    carrier_snap = snap.filter(pl.col("nfl_id") == pf.ball_carrier_id) if pf.ball_carrier_id else None
+    cx0 = float(carrier_snap["x"][0]) if carrier_snap is not None and carrier_snap.height else float("nan")
+    cy0 = float(carrier_snap["y"][0]) if carrier_snap is not None and carrier_snap.height else float("nan")
+
     rows = []
     depth_rank = dfd["x"].rank("ordinal", descending=True).to_numpy()  # 1 = deepest
     for i, r in enumerate(dfd.iter_rows(named=True)):
@@ -117,8 +133,9 @@ def defender_features_for_play(pf: PlayFrame) -> pl.DataFrame:
             "on_line": px <= 1.5, "in_box": bool(box_mask[i]),
             "outside_tackle": abs(py) > tackle_half_width + BOX_PAD,
             "tackle_half_width": tackle_half_width,
-            "depth_rank": int(depth_rank[i]), "is_deep": px >= DEEP_DEPTH,
-            "n_deep": n_deep, "n_box": n_box, "n_on_line": n_on_line,
+            "depth_rank": int(depth_rank[i]), "is_deep": px >= DEEP_DEPTH, "width_rank_side": int(width_rank[i]),
+            "n_deep": n_deep, "n_box": n_box, "n_on_line": n_on_line, "n_deep_line_set": n_deep_line_set,
+            "carrier_x_snap": cx0, "carrier_y_snap": cy0,
             "strong_side": strong_side, "on_strong_side": (py >= 0) == (strong_side == "R"),
             "dist_nearest_rec": dist_rec, "over_rec_num": over, "over_rec_side": over_side,
             "lat_to_nearest_rec": lat_to_rec, "cushion_nearest_rec": cushion,
@@ -132,8 +149,10 @@ def defender_features_for_play(pf: PlayFrame) -> pl.DataFrame:
             ls = at_ls.filter(pl.col("nfl_id") == r["nfl_id"])
             if ls.height:
                 row["depth_line_set"] = float(ls["x"][0])
+                row["lateral_line_set"] = float(ls["y"][0])
                 row["presnap_depth_change"] = px - float(ls["x"][0])
                 row["presnap_lateral_change"] = py - float(ls["y"][0])
+                row["frames_line_set_to_snap"] = pf.snap_frame - pf.line_set_frame
         # 2 s after the snap
         p2 = at2.filter(pl.col("nfl_id") == r["nfl_id"])
         if p2.height:
@@ -176,15 +195,55 @@ def defender_features_for_play(pf: PlayFrame) -> pl.DataFrame:
                     if qt.height:
                         row["dist_qb_thr"] = math.hypot(xt - float(qt["x"][0]), yt - float(qt["y"][0]))
         row["ball_proxy"] = pf.ball_proxy
+        row["offense_moves_right"] = pf.offense_moves_right
+        row["proxy_raw_x"] = pf.ball_x            # snapper (or OL-median) position in the RAW frame: the origin we used
+        row["proxy_raw_y"] = pf.ball_y
+        row["raw_x_snap"] = float(r["raw_x"])     # the defender's raw coordinates at the snap (join check vs NGS x_at_snap)
+        row["raw_y_snap"] = raw_y
+        row["snap_frame"] = pf.snap_frame
+        row["has_line_set"] = pf.line_set_frame is not None
         row["has_throw"] = pf.throw_frame is not None
         row["has_handoff"] = pf.handoff_frame is not None
+        row["has_end_event"] = pf.end_frame is not None
+        row["frames_after_snap"] = int(pf.frames["frame_id"].max()) - pf.snap_frame
         rows.append(row)
     return pl.DataFrame(rows)
 
 
-def defender_features_for_game(game: pl.DataFrame, play_ids: list[int] | None = None) -> pl.DataFrame:
-    """Loop over plays of one loaded game (see loader.load_game)."""
-    out = []
+def offense_alignment_for_play(pf: PlayFrame) -> pl.DataFrame:
+    """One row per offensive skill player at the snap: where he stood, numbered from the outside in. The offensive
+    role vocabulary (X / Z / slot / wing / inline / backfield) is a rule over these columns in roles/, not here."""
+    snap = pf.at(pf.snap_frame)
+    off = snap.filter(pl.col("is_offense"))
+    rec = _receivers(off)
+    if not rec.height:
+        return pl.DataFrame()
+    ol = off.filter(pl.col("position").is_in(["C", "G", "T", "OL", "LG", "RG", "LT", "RT", "OG", "OT"]))
+    thw = float(ol["y"].abs().max()) if ol.height >= 3 else 4.0
+    n_side = {"R": int((rec["y"] >= 0).sum()), "L": int((rec["y"] < 0).sum())}
+    at_ls = pf.at(pf.line_set_frame) if pf.line_set_frame is not None else None
+    rows = []
+    for r in rec.iter_rows(named=True):
+        x, y = float(r["x"]), float(r["y"])
+        row = {"game_key": pf.game_key, "gsis_play_id": pf.gsis_play_id, "nfl_id": int(r["nfl_id"]), "player_name": r.get("player_name"),
+               "ngs_position": r.get("position"), "offense_team": pf.offense_team, "defense_team": pf.defense_team,
+               "x_snap": x, "y_snap": y, "abs_lateral": abs(y), "outside_tackle_by": abs(y) - thw, "tackle_half_width": thw,
+               "on_line": x >= -1.5, "in_backfield": bool(r.get("in_backfield")), "rec_num": r.get("rec_num"), "rec_side": r.get("rec_side"),
+               "n_rec_side": n_side.get(r.get("rec_side") or "", 0), "is_te": r.get("position") == "TE",
+               "speed_snap": float(r["s"]) if r.get("s") is not None else float("nan"), "sideline_dist": float(min(float(r["raw_y"]), FIELD_WIDTH - float(r["raw_y"]))),
+               "has_throw": pf.throw_frame is not None, "has_handoff": pf.handoff_frame is not None, "ball_proxy": pf.ball_proxy}
+        if at_ls is not None:
+            ls = at_ls.filter(pl.col("nfl_id") == r["nfl_id"])
+            if ls.height:
+                row["x_line_set"], row["y_line_set"] = float(ls["x"][0]), float(ls["y"][0])
+                row["presnap_lateral_change"] = y - float(ls["y"][0])
+        rows.append(row)
+    return pl.DataFrame(rows)
+
+
+def game_features(game: pl.DataFrame, play_ids: list[int] | None = None) -> tuple[pl.DataFrame, pl.DataFrame]:
+    """(defender rows, offensive skill-player rows) for one loaded game (see loader.load_game)."""
+    d_out, o_out = [], []
     for pid, play in game.group_by("gsis_play_id", maintain_order=True):
         pid = pid[0] if isinstance(pid, tuple) else pid
         if play_ids is not None and pid not in play_ids:
@@ -194,5 +253,14 @@ def defender_features_for_game(game: pl.DataFrame, play_ids: list[int] | None = 
             continue
         feats = defender_features_for_play(pf)
         if feats.height:
-            out.append(feats)
-    return pl.concat(out, how="diagonal_relaxed") if out else pl.DataFrame()
+            d_out.append(feats)
+        o = offense_alignment_for_play(pf)
+        if o.height:
+            o_out.append(o)
+    return (pl.concat(d_out, how="diagonal_relaxed") if d_out else pl.DataFrame(),
+            pl.concat(o_out, how="diagonal_relaxed") if o_out else pl.DataFrame())
+
+
+def defender_features_for_game(game: pl.DataFrame, play_ids: list[int] | None = None) -> pl.DataFrame:
+    """Loop over plays of one loaded game (see loader.load_game). Defender rows only."""
+    return game_features(game, play_ids)[0]

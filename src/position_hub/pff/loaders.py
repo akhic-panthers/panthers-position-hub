@@ -29,6 +29,29 @@ COV_COLS = ["gsis_game_id", "gsis_play_id", "gsis_player_id", "season", "week", 
             "primary_coverage", "coverage_grade", "defense"]
 
 
+# PFF team codes → standard NFL codes (the sister app's normTeam). Everything a person reads uses the standard code.
+PFF_TEAM_TO_NFL = {"ARZ": "ARI", "BLT": "BAL", "CLV": "CLE", "HST": "HOU"}
+
+
+def nfl_team_code(code: str | None) -> str | None:
+    return PFF_TEAM_TO_NFL.get(code, code) if code else code
+
+
+def flag(df: pl.DataFrame, col: str) -> pl.Expr:
+    """A PFF 'did it happen' column as a Boolean expression, whatever type it arrived in.
+    The feed says 'Y' / '' (empty string, never NULL); the bronze tables and the parquet export type some of
+    them as smallint 0/1 (pff_PLAYACTION, pff_BLITZDOG, pff_RUNPASSOPTION); the INLINE SQL path returns every
+    value as a string. Measured 2026-09-25: `pff_PLAYACTION == 'Y'` raised on both real sources."""
+    if col not in df.columns:
+        return pl.lit(None, pl.Boolean)
+    dt = df.schema[col]
+    if dt == pl.Boolean:
+        return pl.col(col).fill_null(False)
+    if dt.is_numeric():
+        return pl.col(col).fill_null(0) != 0
+    return pl.col(col).is_in(["Y", "1", "True", "true"])
+
+
 def _present(src: DataSource, logical: str, wanted: list[str]) -> list[str]:
     """Only ask for columns the table actually has; the feed's column set has drifted before."""
     try:
@@ -49,9 +72,11 @@ def load_play_context(src: DataSource, seasons: list[int]) -> pl.DataFrame:
     casts += [pl.col(c).cast(pl.Int32, strict=False) for c in ("season", "week", "pff_DOWN", "pff_QUARTER") if c in df.columns]
     df = df.with_columns(casts)
     if "pff_RUNPASS" in df.columns:
-        df = df.with_columns(is_pass=(pl.col("pff_RUNPASS") == "P"))
-    if "pff_PLAYACTION" in df.columns:
-        df = df.with_columns(is_play_action=(pl.col("pff_PLAYACTION") == "Y"))
+        df = df.with_columns(is_pass=(pl.col("pff_RUNPASS") == "P"), is_run=(pl.col("pff_RUNPASS") == "R"))
+    df = df.with_columns(is_play_action=flag(df, "pff_PLAYACTION"), is_rpo=flag(df, "pff_RUNPASSOPTION"), is_blitz=flag(df, "pff_BLITZDOG"))
+    for c in ("pff_OFFTEAM", "pff_DEFTEAM"):
+        if c in df.columns:
+            df = df.with_columns(pl.col(c).map_elements(nfl_team_code, return_dtype=pl.Utf8).alias(c))
     return df
 
 
@@ -71,7 +96,7 @@ def load_defender_snaps(src: DataSource, plays: pl.DataFrame) -> pl.DataFrame:
     d = d.rename({"pff_GSISPLAYERID": "nfl_id", "pff_POSITION": "pff_alignment", "pff_GAMEPOSITION": "pff_game_position"})
     d = d.with_columns(
         pl.col("pff_alignment").map_elements(align_family, return_dtype=pl.Utf8).alias("pff_align_family"),
-        (pl.col("pff_BOXPLAYER") == "Y").alias("pff_in_box") if "pff_BOXPLAYER" in d.columns else pl.lit(None).alias("pff_in_box"),
+        flag(d, "pff_BOXPLAYER").alias("pff_in_box"),
     )
     return d
 

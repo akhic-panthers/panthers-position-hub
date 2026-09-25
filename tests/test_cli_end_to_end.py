@@ -23,7 +23,9 @@ def test_first_run_sequence_on_local_layout(tmp_path, monkeypatch, capsys):
     assert main(["--out", str(out), "features", "--seasons", "2025", "--workers", "2", "--source", "local"]) == 0
     f = pl.read_parquet(out / "features.parquet")
     assert f.height > 1500 and f["pff_alignment"].is_not_null().mean() > 0.99, "PFF join through (game_key, gsis_play_id, nfl_id)"
-    assert 0.3 < f["responsibility"].is_not_null().mean() < 0.8, "charted coverage only on pass snaps"
+    cov_share = (f["responsibility_source"] == "coverage_defense").mean()
+    assert 0.3 < cov_share < 0.8, "coverage_defense charts coverage players on pass snaps only"
+    assert set(f.filter(pl.col("responsibility_source") == "pffdefense.pff_ROLE")["responsibility"].unique().to_list()) <= {"RUSH", "RUN_FIT"}
     assert set(f["week"].unique().to_list()) <= {1, 2, 3}
     assert "is_pass" in f.columns and f["is_pass"].is_not_null().all()
     assert not (out / "features_errors.txt").exists()

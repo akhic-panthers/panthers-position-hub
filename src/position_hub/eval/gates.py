@@ -95,8 +95,20 @@ def run_gates(scored: pl.DataFrame, holdout_games: list[int] | None = None, min_
     if holdout_games:
         if "true_align_role" in scored.columns:      # synthetic truth (tests only)
             out.append(heldout_accuracy(scored, holdout_games, "true_align_role", "align_role"))
+        elif "label_align" in scored.columns:           # real data: the consensus label on held-out games
+            g = heldout_accuracy(scored, holdout_games, "label_align", "align_role")
+            g["name"] = "G2a_heldout_alignment"
+            out.append(g)
         if "responsibility" in scored.columns:
-            out.append(heldout_accuracy(scored, holdout_games, "responsibility", "resp_role", mask=pl.col("has_throw")))
+            # registered construction: coverage_defense assignments on held-out pass snaps. The model is scored on
+            # its RAW prediction (resp_model_role) — resp_role is overwritten by the charted label where one exists.
+            pred = "resp_model_role" if "resp_model_role" in scored.columns else "resp_role"
+            m = pl.col("has_throw")
+            if "responsibility_source" in scored.columns:
+                m = m & (pl.col("responsibility_source") == "coverage_defense")
+            g = heldout_accuracy(scored, holdout_games, "responsibility", pred, mask=m)
+            g["name"] = "G2b_heldout_responsibility"
+            out.append(g)
     out.append(split_half_stability(scored, min_snaps=min_snaps))
     out.append(destruction_control(scored, min_snaps=min_snaps))
     return out

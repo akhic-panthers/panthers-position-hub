@@ -58,7 +58,7 @@ class PlayFrame:
     offense_moves_right: bool
     ball_x: float
     ball_y: float
-    ball_proxy: str                 # "center" | "ol_median" | "qb_offset"
+    ball_proxy: str                 # "center" | "ol_middle" | "ol_median"
     qb_id: int | None
     ball_carrier_id: int | None     # at handoff: nearest non-QB offensive player to the QB
 
@@ -105,11 +105,16 @@ def standardize_play(play: pl.DataFrame) -> PlayFrame | None:
     def_team = [t for t in teams if t != off_team][0]
     off = at_snap.filter(pl.col("team_id") == off_team)
 
-    # ball proxy: the center, else OL median, else 1 yd in front of the QB toward the line
+    # ball proxy: the tagged center; else the MIDDLE lineman (the man with the median lateral position among five
+    # linemen IS the snapper — a guard or tackle carrying his roster label at center); else the OL median.
+    # Measured 2026-09-25 vs NGS x_ball_at_snap: tagged center 0.00 yd off; the coordinate median sat 0.43 yd behind.
     center = off.filter(pl.col("position") == "C")
     ol = off.filter(pl.col("position").is_in(list(OL_POS)))
     if center.height:
         ball_x, ball_y, proxy = float(center["x"][0]), float(center["y"][0]), "center"
+    elif ol.height >= 5:
+        mid = ol.sort("y")[ol.height // 2]
+        ball_x, ball_y, proxy = float(mid["x"][0]), float(mid["y"][0]), "ol_middle"
     elif ol.height >= 3:
         ball_x, ball_y, proxy = float(ol["x"].median()), float(ol["y"].median()), "ol_median"
     else:

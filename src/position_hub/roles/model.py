@@ -29,7 +29,8 @@ from .rules import add_rule_roles
 ALIGN_FEATURES = ["depth", "lateral", "abs_lateral", "sideline_dist", "on_line", "in_box", "outside_tackle",
                   "tackle_half_width", "depth_rank", "n_deep", "n_box", "n_on_line", "on_strong_side",
                   "dist_nearest_rec", "over_rec_num", "lat_to_nearest_rec", "cushion_nearest_rec",
-                  "nearest_rec_is_te", "nearest_rec_detached", "presnap_depth_change", "presnap_lateral_change"]
+                  "nearest_rec_is_te", "nearest_rec_detached", "presnap_depth_change", "presnap_lateral_change",
+                  "width_rank_side"]
 RESP_FEATURES = ALIGN_FEATURES + ["bite_2s", "lateral_move_2s", "ground_covered_2s", "speed_2s", "crossed_los_2s",
                                   "min_depth_to_2s", "depth_2s", "dist_qb_2s", "dist_aligned_rec_2s",
                                   "dist_nearest_rec_2s", "depth_thr", "dist_nearest_rec_thr", "dist_qb_thr",
@@ -103,6 +104,7 @@ class RoleAttributionModel:
     def predict(self, feats: pl.DataFrame) -> pl.DataFrame:
         """Adds p_align_<ROLE>, align_role (argmax), p_resp_<CLS>, resp_role. Missing columns = 0."""
         f = feats if "rule_align_role" in feats.columns else add_rule_roles(feats)
+        f = self.consensus_align_labels(f) if "label_align" not in f.columns else f
         out = f
         if self.align_clf is not None:
             P = self.align_clf.predict_proba(_matrix(f, ALIGN_FEATURES))
@@ -125,6 +127,13 @@ class RoleAttributionModel:
             for j, c in enumerate(self.resp_classes):
                 if c in idx:
                     P[rows, idx[c]] = pm[:, j]
+        # the model's own answer, BEFORE charted truth overwrites it — the only column G2b may score
+        # (defect fixed 2026-09-25: G2b used to score resp_role, which IS the charted label where one exists)
+        model_role = None
+        if self.resp_clf is not None and pass_mask.any():
+            model_role = [None] * out.height
+            for i in np.where(pass_mask)[0]:
+                model_role[i] = RESPONSIBILITIES[int(P[i].argmax())] if P[i].sum() > 0 else None
         rule = out.get_column("rule_responsibility").to_list() if "rule_responsibility" in out.columns else [None] * out.height
         charted = out.get_column("responsibility").to_list() if "responsibility" in out.columns else [None] * out.height
         for i in range(out.height):
@@ -135,7 +144,8 @@ class RoleAttributionModel:
                 P[i, idx[rule[i]]] = 1.0
         out = out.with_columns([pl.Series(f"p_resp_{c}", P[:, idx[c]]) for c in RESPONSIBILITIES])
         resp_role = [RESPONSIBILITIES[k] if P[i].sum() > 0 else None for i, k in enumerate(P.argmax(1))]
-        return out.with_columns(pl.Series("resp_role", resp_role, dtype=pl.Utf8))
+        out = out.with_columns(pl.Series("resp_role", resp_role, dtype=pl.Utf8))
+        return out.with_columns(pl.Series("resp_model_role", model_role if model_role is not None else [None] * out.height, dtype=pl.Utf8))
 
     # ── persistence ────────────────────────────────────────────────────────────────────────────
     def save(self, path: Path) -> None:

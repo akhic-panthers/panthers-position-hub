@@ -420,10 +420,17 @@ class DataSource:
 def get_source(prefer: str = "auto") -> DataSource:
     """Pick Databricks when it is configured *and* answers; otherwise the local export."""
     cfg = DatabricksConfig()
-    if prefer in ("auto", "databricks") and cfg.configured and cfg.http_path:
+    # DATABRICKS_HTTP_PATH is optional: DatabricksSQL auto-picks the running warehouse when it is unset
+    # (the probe does the same). Requiring it here sent a configured Mac to the local export silently.
+    if prefer in ("auto", "databricks") and cfg.configured:
         ok, detail = UnityCatalogClient(cfg).reachable()
         if ok:
-            return DataSource(mode="databricks", dbx=DatabricksSQL(cfg))
+            try:
+                return DataSource(mode="databricks", dbx=DatabricksSQL(cfg))
+            except DatabricksError as e:
+                if prefer == "databricks":
+                    raise
+                detail = f"reachable but no usable warehouse/credential: {e}"
         if prefer == "databricks":
             raise DatabricksUnreachable(f"{cfg.host} unreachable: {detail}")
     return DataSource(mode="local", local=LocalDataConfig())
