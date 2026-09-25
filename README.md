@@ -28,7 +28,8 @@ Example output (synthetic dry run, so the names are fake): a safety at **41% dee
 
 ```bash
 pip install -e ".[dev]"            # numpy · polars · pyarrow · scikit-learn · requests · pytest
-cp .env.example .env               # fill DATABRICKS_HOST / TOKEN / HTTP_PATH, PANTHERS_DATA_DIR
+databricks auth login --host https://adb-7405617646104787.7.azuredatabricks.net   # once; or `az login`
+export DATABRICKS_HOST=https://adb-7405617646104787.7.azuredatabricks.net          # no token needed after a CLI login
 pytest -q                          # 28 tests, synthetic tracking, ~15 s
 
 poshub demo                        # whole pipeline on synthetic plays → viewer/data/role_mix.json

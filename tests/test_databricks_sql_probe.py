@@ -186,3 +186,31 @@ def test_azure_cli_token_is_used_when_no_pat_or_sp(monkeypatch):
     monkeypatch.setattr(C.subprocess, "run", lambda cmd, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="Please run 'az login'"))
     rep = probe(cfg, session=FakeSession({"unity-catalog/catalogs": FakeResp(401, {})}))
     assert rep.rungs[-1].name == "auth" and rep.rungs[-1].ok is False and "az login" in rep.rungs[-1].remedy
+
+
+def test_databricks_cli_token_is_preferred_over_azure_cli(monkeypatch):
+    """`databricks auth login --host …` once; the chain calls `databricks auth token --host …`."""
+    import types
+
+    C._AAD_CACHE.clear()
+    calls = []
+
+    def fake_run(cmd, **kw):
+        calls.append(cmd)
+        if cmd[0].endswith("databricks"):
+            return types.SimpleNamespace(returncode=0, stdout=json.dumps({"access_token": "dbx-tok", "token_type": "Bearer"}), stderr="")
+        return types.SimpleNamespace(returncode=0, stdout=json.dumps({"accessToken": "cli-tok"}), stderr="")
+    monkeypatch.setattr(C.shutil, "which", lambda name: f"/opt/homebrew/bin/{name}" if name in ("az", "databricks") else None)
+    monkeypatch.setattr(C.subprocess, "run", fake_run)
+    cfg = DatabricksConfig(host=HOST, token="", http_path="/sql/1.0/warehouses/abc123")
+    s = FakeSession({"/scim/v2/Me": FakeResp(200, {"userName": "akhi@panthers.nfl.com"})})
+    assert C.UnityCatalogClient(cfg, session=s).whoami()["user"] == "akhi@panthers.nfl.com"
+    assert len(calls) == 1 and calls[0][1:3] == ["auth", "token"] and calls[0][-2:] == ["--host", HOST]
+    assert s.calls[0][2]["headers"]["Authorization"] == "Bearer dbx-tok"
+
+    # CLI installed, never logged in: both CLIs fail → the probe says so and names the login command
+    C._AAD_CACHE.clear()
+    monkeypatch.setattr(C.subprocess, "run", lambda cmd, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="not logged in"))
+    rep = probe(cfg, session=FakeSession({"unity-catalog/catalogs": FakeResp(401, {})}))
+    r = rep.rungs[-1]
+    assert r.name == "auth" and r.ok is False and "Databricks CLI / Azure CLI present" in r.detail and f"databricks auth login --host {HOST}" in r.remedy

@@ -93,17 +93,47 @@ def _azure_cli_token() -> str | None:
     return tok
 
 
+def _databricks_cli_token(host: str, profile: str = "") -> str | None:
+    """`databricks auth login --host <host>` once (browser OAuth; the CLI caches the token in
+    ~/.databricks/token-cache.json). Every call here is `databricks auth token`, which refreshes it.
+    Returns None when the CLI is absent or has no login for this host."""
+    dbx = shutil.which("databricks")
+    if not dbx or not (host or profile):
+        return None
+    key = f"dbx-cli:{profile or host}"
+    exp, tok = _AAD_CACHE.get(key, (0.0, ""))
+    if tok and time.time() < exp - 60:
+        return tok
+    cmd = [dbx, "auth", "token", "--output", "json"] + (["--profile", profile] if profile else ["--host", host])
+    try:
+        out = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if out.returncode != 0:
+        return None
+    try:
+        j = json.loads(out.stdout)
+    except ValueError:
+        return None
+    tok = j.get("access_token")
+    if not tok:
+        return None
+    _AAD_CACHE[key] = (time.time() + 600.0, tok)   # the CLI refreshes; keep ours short
+    return tok
+
+
 def _bearer(cfg: DatabricksConfig, session: requests.Session | None = None) -> dict[str, str]:
     """Credential chain, first hit wins:
        1. DATABRICKS_TOKEN (PAT)
        2. Azure service principal: ARM_TENANT_ID / ARM_CLIENT_ID / ARM_CLIENT_SECRET
-       3. Azure CLI: `az login` then a token for the Databricks resource (no SDK, no PAT)
-       4. databricks-sdk chain: OAuth U2M profile, env, Azure identities"""
+       3. Databricks CLI: `databricks auth login --host <host>` once, then `databricks auth token`
+       4. Azure CLI: `az login` then a token for the Databricks resource
+       5. databricks-sdk chain: OAuth U2M profile, env, Azure identities"""
     if cfg.token:
         return {"Authorization": f"Bearer {cfg.token}"}
     if cfg.azure_tenant_id and cfg.azure_client_id and cfg.azure_client_secret:
         return {"Authorization": f"Bearer {_azure_sp_token(cfg.azure_tenant_id, cfg.azure_client_id, cfg.azure_client_secret, session)}"}
-    cli = _azure_cli_token()
+    cli = _databricks_cli_token(cfg.host, cfg.profile) or _azure_cli_token()
     if cli:
         return {"Authorization": f"Bearer {cli}"}
     # Fall back to the SDK credential chain (OAuth U2M, Azure CLI, profile). Optional dependency.
@@ -117,9 +147,8 @@ def _bearer(cfg: DatabricksConfig, session: requests.Session | None = None) -> d
         return dict(c.authenticate())
     except ImportError as e:  # pragma: no cover - depends on environment
         raise DatabricksAuthError(
-            "no credential: run `az login` (Azure CLI), or set DATABRICKS_TOKEN (PAT), or "
-            "ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET (service principal), or "
-            "`pip install databricks-sdk` and `databricks auth login --host <host>`"
+            "no credential: `databricks auth login --host <host>` (Databricks CLI) or `az login` (Azure CLI), "
+            "or set DATABRICKS_TOKEN (PAT), or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET (service principal)"
         ) from e
     except Exception as e:  # pragma: no cover
         raise DatabricksAuthError(f"databricks-sdk could not authenticate: {e}") from e

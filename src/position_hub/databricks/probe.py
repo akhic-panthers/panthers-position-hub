@@ -76,18 +76,22 @@ def probe(cfg: DatabricksConfig | None = None, session=None, tables: list[str] |
     if missing:
         rep.add(Rung("auth", False, "no credential", f"{' or '.join(missing)}"))
         return rep
-    if not (cfg.token or cfg.profile or (cfg.azure_tenant_id and cfg.azure_client_id)) and cfg.has_azure_cli:
-        from .client import _azure_cli_token
+    if not (cfg.token or (cfg.azure_tenant_id and cfg.azure_client_id)):
+        from .client import _azure_cli_token, _databricks_cli_token
 
-        if not _azure_cli_token():
-            rep.add(Rung("auth", False, "Azure CLI present but not logged in", "run `az login` (then it is a token for resource 2ff814a6-… on every call)"))
+        dbx_tok = _databricks_cli_token(cfg.host, cfg.profile) if cfg.has_databricks_cli else None
+        az_tok = _azure_cli_token() if (cfg.has_azure_cli and not dbx_tok) else None
+        if (cfg.has_databricks_cli or cfg.has_azure_cli) and not (dbx_tok or az_tok):
+            which = " / ".join(n for n, ok in (("Databricks CLI", cfg.has_databricks_cli), ("Azure CLI", cfg.has_azure_cli)) if ok)
+            rep.add(Rung("auth", False, f"{which} present but not logged in for this host",
+                         f"run `databricks auth login --host {cfg.host}` (browser opens once), or `az login`"))
             return rep
     try:
         me = uc.whoami()
         rep.add(Rung("auth", True, f"{me.get('user')} ({me.get('display') or 'no display name'})"))
     except DatabricksAuthError as e:
-        rep.add(Rung("auth", False, str(e)[:160], "token rejected: `az login` again (Azure CLI), or regenerate the PAT, "
-                                                 "or add the service principal to the workspace"))
+        rep.add(Rung("auth", False, str(e)[:160], f"token rejected: `databricks auth login --host {cfg.host}` again, or `az login`, "
+                                                 "or regenerate the PAT, or add the service principal to the workspace"))
         return rep
     except DatabricksUnreachable as e:
         rep.add(Rung("auth", False, str(e)[:160], "host answered the first time and not the second: proxy instability, retry"))
