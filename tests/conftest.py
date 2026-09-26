@@ -33,3 +33,15 @@ def season():
     feats = feats.join(tr.select("game_key", "gsis_play_id", "nfl_id", "pff_alignment", "pff_align_family", "responsibility",
                                  "true_align_role", "true_responsibility", "is_pass"), on=["game_key", "gsis_play_id", "nfl_id"], how="left")
     return add_rule_roles(feats), truth, fr
+
+
+@pytest.fixture(autouse=True)
+def _no_machine_credentials(monkeypatch):
+    """Tests never see this machine's Databricks / Thunder settings. The repo-root .env (gitignored) is real on the
+    Mac and `poshub` loads it at start; without this, one CLI test leaks DATABRICKS_CONFIG_PROFILE into the rest."""
+    import position_hub.cli as cli
+
+    for k in ("DATABRICKS_HOST", "DATABRICKS_TOKEN", "DATABRICKS_HTTP_PATH", "DATABRICKS_CONFIG_PROFILE", "ARM_TENANT_ID",
+              "ARM_CLIENT_ID", "ARM_CLIENT_SECRET", "THUNDER_USERNAME", "THUNDER_PASSWORD", "THUNDER_VENDOR_GUID", "OPENFIELD_TOKEN"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setattr(cli, "load_dotenv", lambda *a, **k: None)

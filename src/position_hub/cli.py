@@ -337,6 +337,41 @@ def cmd_extend(a) -> int:
     return 0
 
 
+def cmd_v2(a) -> int:
+    """v2 alignment (docs/REGISTERED_role_attribution_v2.md): fit on PFF's charted slot, gate, write out/v2/."""
+    from .roles.aggregate import add_peer_percentiles, player_role_mix
+    from .roles.v2 import run_v2
+    from .viewer.export import export_pos_boards, export_viewer_json
+
+    out = Path(a.out)
+    if a.mix_only:
+        res = {"gates": json.loads((Path(a.run_dir) / "gates_v2.json").read_text())}
+    else:
+        res = run_v2(out, Path(a.run_dir), seed=a.seed)
+    s = pl.read_parquet(out / "v2" / "scored.parquet")
+    mix = player_role_mix(s, min_snaps=100)
+    # peer group follows the JOB where the roster label is ambiguous: a "DE" or "OLB" who plays inside on most snaps is
+    # compared with interior linemen (Derrick Brown is listed DE by NGS and is 91% interior). Not gated; display only.
+    mix = mix.with_columns(pl.when((pl.col("peer_group") == "EDGE") & (pl.col("primary_role") == "INTERIOR_DL")).then(pl.lit("IDL"))
+                           .when((pl.col("peer_group") == "IDL") & (pl.col("primary_role") == "EDGE")).then(pl.lit("EDGE"))
+                           .otherwise(pl.col("peer_group")).alias("peer_group"))
+    mix = add_peer_percentiles(mix, min_snaps=200)
+    mix.write_parquet(out / "v2" / "role_mix.parquet")
+    call = pl.read_parquet(out / "safety_mix_by_call.parquet") if (out / "safety_mix_by_call.parquet").exists() else None
+    export_viewer_json(mix, Path(a.viewer_json), gates=res["gates"], source=str(out / "v2"), call=call)
+    export_pos_boards(mix, Path(a.viewer_json).with_name("pos_roles.json"), gates=res["gates"])
+    print(f"{mix.height} player-seasons (v2) → {out / 'v2' / 'role_mix.parquet'}")
+    return 0
+
+
+def cmd_export_web(a) -> int:
+    from .viewer.web_export import export_web
+
+    res = export_web(Path(a.out), Path(a.web_public), [Path(d) for d in a.run_dirs], sister_public=Path(a.sister_public))
+    print(res)
+    return 0
+
+
 def cmd_report(a) -> int:
     from .eval.report import build
 
@@ -452,6 +487,12 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--refresh", action="store_true", help="ignore <out>/cache and re-pull the charting tables"); s.set_defaults(fn=cmd_features)
     s = sub.add_parser("summarize"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_summarize)
     s = sub.add_parser("verify"); s.add_argument("--run-dir", required=True); s.set_defaults(fn=cmd_verify)
+    s = sub.add_parser("v2"); s.add_argument("--run-dir", required=True); s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--mix-only", action="store_true", help="skip the fit; re-aggregate out/v2/scored.parquet")
+    s.add_argument("--viewer-json", default="viewer/data/role_mix.json"); s.set_defaults(fn=cmd_v2)
+    s = sub.add_parser("export-web"); s.add_argument("--web-public", default="web/public")
+    s.add_argument("--run-dirs", nargs="*", default=["runs/2026-09-25_full", "runs/2026-09-26_v2"])
+    s.add_argument("--sister-public", default=str(Path.home() / "panthers_projects" / "web" / "public")); s.set_defaults(fn=cmd_export_web)
     s = sub.add_parser("report"); s.add_argument("--run-dir", required=True); s.add_argument("--team", default="CAR"); s.add_argument("--names")
     s.set_defaults(fn=cmd_report)
     s = sub.add_parser("extend"); s.add_argument("--run-dir", required=True); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_extend)

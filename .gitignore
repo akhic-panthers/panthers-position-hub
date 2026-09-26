@@ -24,3 +24,11 @@ out/
 out_smoke/
 viewer/data/*.json
 !viewer/data/.gitkeep
+
+# web app
+web/node_modules/
+web/.next/
+web/public/ph/
+web/.env*
+!web/.env.example
+web/*.tsbuildinfo

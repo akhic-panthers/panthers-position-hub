@@ -1,0 +1,17 @@
+| gate | value | bar | n | verdict |
+|---|---|---|---|---|
+| V1_heldout_vs_charter | 0.942 | 0.844 | 176627 | GO |
+| V2_heldout_vs_NGS | 0.896 | 0.854 | 176525 | GO |
+| V3_calibration_ECE | 0.003 | 0.050 | 176627 | GO |
+| V4_field_is_soft | 0.106 | 0.050 | 176662 | GO |
+| V1_null_shuffled_labels | 0.219 | 0.225 | 176627 | GO |
+| V5_split_half | 0.977 | 0.700 | 2575 | GO |
+| V6_destruction | 0.279 | < 0.5 × real (0.977) | 2575 | GO |
+- V1_heldout_vs_charter: rule 0.824 on the same snaps; majority 0.205
+- V2_heldout_vs_NGS: rule 0.864; ceiling (PFF label vs NGS) 0.886
+- V3_calibration_ECE: top-label, 10 bins
+- V4_field_is_soft: share of held-out snaps with top probability < 0.8
+- V1_null_shuffled_labels: labels shuffled within game, identical fit — must collapse to the majority class
+- V5_split_half: median even/odd-game correlation of alignment shares; per-role: EDGE 0.99, INTERIOR_DL 1.00, OFF_BALL_LB 0.99, SLOT_CB 0.95, BOUNDARY_CB 0.99, BOX_SAFETY 0.95, DEEP_HALF 0.97, DEEP_MIDDLE 0.94
+- V6_destruction: within-play shuffle of role vectors; stability must collapse
+2898 player-seasons (v2) → out/v2/role_mix.parquet

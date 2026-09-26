@@ -1,0 +1,58 @@
+[
+ {
+  "name": "V1_heldout_vs_charter",
+  "value": 0.9418322227066077,
+  "bar": 0.8440303011430869,
+  "pass": true,
+  "n": 176627,
+  "note": "rule 0.824 on the same snaps; majority 0.205"
+ },
+ {
+  "name": "V2_heldout_vs_NGS",
+  "value": 0.8958561110324317,
+  "bar": 0.8541608837275173,
+  "pass": true,
+  "n": 176525,
+  "note": "rule 0.864; ceiling (PFF label vs NGS) 0.886"
+ },
+ {
+  "name": "V3_calibration_ECE",
+  "value": 0.0026192445311175277,
+  "bar": 0.05,
+  "pass": true,
+  "n": 176627,
+  "note": "top-label, 10 bins"
+ },
+ {
+  "name": "V4_field_is_soft",
+  "value": 0.10647451064745106,
+  "bar": 0.05,
+  "pass": true,
+  "n": 176662,
+  "note": "share of held-out snaps with top probability < 0.8"
+ },
+ {
+  "name": "V1_null_shuffled_labels",
+  "value": 0.21903219779535404,
+  "bar": 0.22510454234063873,
+  "pass": true,
+  "n": 176627,
+  "note": "labels shuffled within game, identical fit \u2014 must collapse to the majority class"
+ },
+ {
+  "name": "V5_split_half",
+  "value": 0.9766796508829176,
+  "bar": 0.7,
+  "pass": true,
+  "n": 2575,
+  "note": "median even/odd-game correlation of alignment shares; per-role: EDGE 0.99, INTERIOR_DL 1.00, OFF_BALL_LB 0.99, SLOT_CB 0.95, BOUNDARY_CB 0.99, BOX_SAFETY 0.95, DEEP_HALF 0.97, DEEP_MIDDLE 0.94"
+ },
+ {
+  "name": "V6_destruction",
+  "value": 0.27907672158326735,
+  "bar": "< 0.5 \u00d7 real (0.977)",
+  "pass": true,
+  "n": 2575,
+  "note": "within-play shuffle of role vectors; stability must collapse"
+ }
+]

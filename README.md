@@ -84,8 +84,11 @@ Gate first, tune never. A NO-GO ships as a report. A bug is never a finding. Des
 labelled (role shares are ratings of deployment, not grades or projections). Nothing generated enters any
 pool, price, index or board. Held out by game, never by row. Empty string ≠ NULL in the PFF feed.
 
-## Status (2026-09-25, first real run)
-Four seasons scored: 2022–2025, 1,139 games, 1.62M defender-snaps. G1, G2b, G3, G4 **GO**; G2a **VOID** (tautological
-by construction, see the registration); the alignment model is the rule, so v1's position field is a per-snap count.
-Extensions: bite / ground covered over expected, disguise and zone-match GO; offensive roles NO-GO at 84.3%.
-Read `runs/2026-09-25_full/REPORT.md`, then `docs/REGISTERED_role_attribution_v1.md` and `docs/v2_candidates.md`.
+## Status (2026-09-26, v2)
+- **v2 role model** (trained on PFF's charted slot, checked against NGS): all seven gates GO. `runs/2026-09-26_v2/REPORT.md`.
+- **v1 first run** (2022–2025, 1.62M defender-snaps): `runs/2026-09-25_full/REPORT.md`.
+- **The app** (`web/`, Next.js in the Panthers analytics UI): Role Board, Player Room (alignment map, heatmap, first
+  two seconds, block map), film for every snap from Thunder, Team Shells, Method. `poshub export-web` builds its data;
+  `cd web && pnpm install && pnpm dev` serves it on :3100. The Thunder login lives in the repo `.env` (gitignored) and
+  is read server-side only.
+- `viewer/index.html` is the original static viewer, kept for the v1 JSON.
