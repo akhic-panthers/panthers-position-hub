@@ -14,7 +14,8 @@ export const RESP = ["RUSH", "RUN_FIT", "MAN", "MAN_MATCH", "UNDER_ZONE", "DEEP_
 export const RESP_LABEL: Record<string, string> = {
   RUSH: "Pass Rush", RUN_FIT: "Run Fit", MAN: "Man Coverage", MAN_MATCH: "Match (Zone Played As Man)", UNDER_ZONE: "Underneath Zone", DEEP_ZONE: "Deep Zone",
 };
-export const GROUP_LABEL: Record<string, string> = { S: "Safeties", CB: "Corners", LB: "Linebackers", EDGE: "Edge", IDL: "Interior Line", DB: "Defensive Backs" };
+export const GROUP_LABEL: Record<string, string> = { S: "Safeties", CB: "Corners", LB: "Linebackers", EDGE: "Edge", IDL: "Interior Line", DB: "Defensive Backs",
+  WR: "Receivers", TE: "Tight Ends", RB: "Backs" };
 /** the roles each position group is read against, in the order a coach reads them */
 export const GROUP_ROLES: Record<string, Role[]> = {
   S: ["DEEP_MIDDLE", "DEEP_HALF", "BOX_SAFETY", "SLOT_CB", "OFF_BALL_LB", "BOUNDARY_CB", "EDGE"],
@@ -33,3 +34,16 @@ export function downDistance(down: number | null, dist: string | number | null):
   const d = ["", "1st", "2nd", "3rd", "4th"][down] ?? `${down}th`;
   return dist == null || dist === "" ? d : `${d} and ${dist}`;
 }
+
+// ── offense (docs/REGISTERED_offense_roles_v1.md) ──
+export const OFF_ROLES = ["WIDE", "SLOT", "FLEX", "INLINE_TE", "H_BACK", "TAILBACK"] as const;
+export const OFF_ROLE_LABEL: Record<string, string> = { WIDE: "Wide", SLOT: "Slot", FLEX: "Flexed Inside", INLINE_TE: "Tight End", H_BACK: "H-Back / Fullback", TAILBACK: "Tailback" };
+export const OFF_ROLE_COLOR: Record<string, string> = { WIDE: "#1CA3E0", SLOT: "#10B981", FLEX: "#A78BFA", INLINE_TE: "#F59E0B", H_BACK: "#FB923C", TAILBACK: "#F43F5E" };
+export const OFF_GROUP_ROLES: Record<string, string[]> = {
+  WR: ["WIDE", "SLOT", "FLEX", "INLINE_TE", "TAILBACK", "H_BACK"],
+  TE: ["INLINE_TE", "FLEX", "SLOT", "WIDE", "H_BACK", "TAILBACK"],
+  RB: ["TAILBACK", "H_BACK", "SLOT", "WIDE", "INLINE_TE", "FLEX"],
+};
+/** one lookup for any role word, either side of the ball */
+export const ANY_ROLE_LABEL: Record<string, string> = { ...ROLE_LABEL, ...OFF_ROLE_LABEL };
+export const ANY_ROLE_COLOR: Record<string, string> = { ...ROLE_COLOR, ...OFF_ROLE_COLOR };

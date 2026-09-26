@@ -10,10 +10,11 @@ import { PlayerHeadshot } from "@/components/ph/headshot";
 import { MixBar, RoleLegend } from "@/components/ph/role-bars";
 import { MetricHeader } from "@/components/ui/metric-header";
 import { loadIndex, type Index, type PlayerSeason } from "@/lib/ph";
-import { GROUP_LABEL, GROUP_ROLES, ROLE_LABEL, ROLES, ordinal } from "@/lib/roles";
+import { ANY_ROLE_LABEL, GROUP_LABEL, GROUP_ROLES, OFF_GROUP_ROLES, OFF_ROLES, ROLES, ordinal } from "@/lib/roles";
 import { cn } from "@/lib/utils";
 
 const GROUPS = ["S", "CB", "LB", "EDGE", "IDL"];
+const OFF_GROUPS = ["WR", "TE", "RB"];
 
 function Board() {
   const q = useSearchParams();
@@ -27,7 +28,8 @@ function Board() {
   const season = Number(q.get("season")) || seasons[0];
   const group = q.get("group") ?? (q.get("team") ? "" : "S");
   const team = q.get("team") ?? "";
-  const sortRole = q.get("sort") ?? (group ? GROUP_ROLES[group]?.[0] : "") ?? "";
+  const offense = OFF_GROUPS.includes(group);
+  const sortRole = q.get("sort") ?? (group ? (offense ? OFF_GROUP_ROLES[group] : GROUP_ROLES[group])?.[0] : "") ?? "";
   const teams = useMemo(() => (data ? [...new Set(data.players.map((p) => p.team).filter(Boolean))].sort() : []), [data]);
 
   const set = (k: string, v: string) => {
@@ -41,21 +43,29 @@ function Board() {
     if (!data) return [];
     const s = search.trim().toLowerCase();
     return data.players
-      .filter((p) => p.season === season && (!group || p.group === group) && (!team || p.team === team) && (!s || p.name?.toLowerCase().includes(s)))
+      .filter((p) => p.season === season && (group ? p.group === group : p.side === "D") && (!team || p.team === team) && (!s || p.name?.toLowerCase().includes(s)))
       .sort((a, b) => (sortRole ? (b.align[sortRole] ?? 0) - (a.align[sortRole] ?? 0) : b.snaps - a.snaps));
   }, [data, season, group, team, search, sortRole]);
 
-  const roleCols = (group ? GROUP_ROLES[group] : ROLES.slice()).slice(0, 5);
+  const roleCols: string[] = (offense ? OFF_GROUP_ROLES[group] : group ? GROUP_ROLES[group] : ROLES.slice()).slice(0, 5);
 
   return (
     <>
       <HeroIntro eyebrow="Position Hub · 2022–2025" lead="What He" accent="Actually Plays"
-        sub="PFF charts one position per snap. This reads every snap from the tracking and asks how a charter would call it, so a safety shows up as the post, half-field, box and slot man he really is."
-        chips={["1.6M Defensive Snaps", "Every Snap On Film", "Deployment, Not A Grade"]} />
+        sub="PFF charts one position per snap. This reads every snap from the tracking and asks how a charter would call it, so a safety shows up as the post, half-field, box and slot man he really is, and a tight end as the inline, wing, flexed and slot player he really is."
+        chips={["1.6M Defensive Snaps", "730K Skill-Player Snaps", "Every Snap On Film", "Deployment, Not A Grade"]} />
 
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex flex-wrap gap-1 rounded-lg border border-ink-700 bg-ink-900/40 p-0.5">
           {GROUPS.map((g) => (
+            <button key={g} type="button" onClick={() => set("group", g === group ? "" : g)}
+              className={cn("rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors", g === group ? "bg-panthers-blue/20 text-panthers-bright" : "text-muted hover:text-white")}>
+              {GROUP_LABEL[g]}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-1 rounded-lg border border-ink-700 bg-ink-900/40 p-0.5">
+          {OFF_GROUPS.map((g) => (
             <button key={g} type="button" onClick={() => set("group", g === group ? "" : g)}
               className={cn("rounded-md px-3 py-1.5 text-[13px] font-semibold transition-colors", g === group ? "bg-panthers-blue/20 text-panthers-bright" : "text-muted hover:text-white")}>
               {GROUP_LABEL[g]}
@@ -69,7 +79,7 @@ function Board() {
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search by name"
             className="w-56 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-foreground outline-none focus:border-panthers-blue" />
         </label>
-        <div className="ml-auto"><RoleLegend /></div>
+        <div className="ml-auto"><RoleLegend roles={offense ? OFF_ROLES : ROLES} /></div>
       </div>
 
       {err ? <ErrorState error={err} /> : !data ? <TableSkeleton rows={12} /> : rows.length === 0 ? (
@@ -85,7 +95,7 @@ function Board() {
                 <th className="min-w-[220px] px-3 py-2.5"><MetricHeader label="Role Mix" metricKey="role_mix" /></th>
                 {roleCols.map((r) => (
                   <th key={r} className="px-3 py-2.5 text-right">
-                    <button type="button" onClick={() => set("sort", r)} className={cn("uppercase", sortRole === r ? "text-white" : "hover:text-white")}>{ROLE_LABEL[r]}</button>
+                    <button type="button" onClick={() => set("sort", r)} className={cn("uppercase", sortRole === r ? "text-white" : "hover:text-white")}>{ANY_ROLE_LABEL[r]}</button>
                   </th>
                 ))}
                 <th className="px-3 py-2.5 text-right"><MetricHeader label="Jobs" metricKey="jobs" /></th>
@@ -106,14 +116,14 @@ function Row({ p, roleCols }: { p: PlayerSeason; roleCols: string[] }) {
   return (
     <tr className="border-b border-ink-800 transition-colors hover:bg-ink-800/60">
       <td className="px-3 py-2">
-        <Link href={`/player?id=${p.id}&season=${p.season}`} className="flex items-center gap-2.5">
+        <Link href={`/player?id=${p.id}&season=${p.season}&side=${p.side}`} className="flex items-center gap-2.5">
           <PlayerHeadshot name={p.name} url={p.head} size={32} />
           <span><span className="block font-semibold text-white hover:text-panthers-bright">{p.name}</span><span className="text-[12px] text-muted">{p.pos}</span></span>
         </Link>
       </td>
       <td className="px-3 py-2"><TeamLogo team={p.team} size={20} /></td>
       <td className="tnum px-3 py-2 text-right text-foreground">{p.snaps.toLocaleString("en-US")}</td>
-      <td className="px-3 py-2"><MixBar align={p.align} /></td>
+      <td className="px-3 py-2"><MixBar align={p.align} roles={p.side === "O" ? OFF_ROLES : ROLES} /></td>
       {roleCols.map((r) => (
         <td key={r} className="tnum px-3 py-2 text-right">
           <span className="font-semibold text-white">{Math.round((p.align[r] ?? 0) * 100)}%</span>

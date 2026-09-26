@@ -3,14 +3,17 @@
 // with the snap's seek window; the browser only ever sees the video.
 import { useEffect, useRef, useState } from "react";
 import { Clapperboard } from "lucide-react";
-import type { Snap } from "@/lib/ph";
-import { ROLE_LABEL, downDistance } from "@/lib/roles";
+import { downDistance } from "@/lib/roles";
+
+/** what the film panel needs from a snap, either side of the ball */
+export type FilmSnap = { game_key: number; play_id: number; week: number; opp: string | null; down: number | null; distance: string | null;
+  pass: boolean; pa: boolean; context: string };
 import { cn } from "@/lib/utils";
 
 type Angle = { view: string; label: string; url: string; start: number; end: number };
 type Film = { title: string; description: string | null; angles: Angle[] };
 
-export function FilmPanel({ snap, playerName }: { snap: Snap | null; playerName: string }) {
+export function FilmPanel({ snap, playerName }: { snap: FilmSnap | null; playerName: string }) {
   const [film, setFilm] = useState<Film | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -51,7 +54,7 @@ export function FilmPanel({ snap, playerName }: { snap: Snap | null; playerName:
         {snap && (
           <div className="mb-3">
             <div className="text-[15px] font-bold text-white">{playerName} · Week {snap.week} vs {snap.opp ?? "—"}</div>
-            <div className="text-[13px] text-muted">{downDistance(snap.down, snap.distance)} · {snap.pa ? "Play action" : snap.pass ? "Pass" : "Run"} · lined up as {ROLE_LABEL[snap.role]} ({Math.round(snap.p * 100)}%)</div>
+            <div className="text-[13px] text-muted">{downDistance(snap.down, snap.distance)} · {snap.pa ? "Play action" : snap.pass ? "Pass" : "Run"} · {snap.context}</div>
           </div>
         )}
         {loading && <div className="aspect-video w-full animate-pulse rounded-lg bg-ink-800" />}

@@ -1,11 +1,11 @@
 import { cn } from "@/lib/utils";
-import { ROLES, ROLE_COLOR, ROLE_LABEL, ordinal } from "@/lib/roles";
+import { ANY_ROLE_COLOR as ROLE_COLOR, ANY_ROLE_LABEL as ROLE_LABEL, ROLES, ordinal } from "@/lib/roles";
 
 /** One stacked bar for a whole role mix. 2px surface gap between touching fills (mark spec). */
-export function MixBar({ align, className, height = 10 }: { align: Record<string, number | null>; className?: string; height?: number }) {
+export function MixBar({ align, roles = ROLES, className, height = 10 }: { align: Record<string, number | null>; roles?: readonly string[]; className?: string; height?: number }) {
   return (
     <div className={cn("flex w-full gap-[2px] overflow-hidden rounded-[4px]", className)} style={{ height }}>
-      {ROLES.map((r) => {
+      {roles.map((r) => {
         const v = align[r] ?? 0;
         return v >= 0.01 ? <span key={r} title={`${ROLE_LABEL[r]} ${(v * 100).toFixed(0)}%`} style={{ width: `${v * 100}%`, backgroundColor: ROLE_COLOR[r] }} /> : null;
       })}

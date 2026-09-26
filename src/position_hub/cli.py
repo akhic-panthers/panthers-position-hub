@@ -372,6 +372,47 @@ def cmd_export_web(a) -> int:
     return 0
 
 
+def _paths_job(args):
+    path, season, week = args
+    from .ngs.offense_paths import offense_paths_for_game
+    try:
+        d = offense_paths_for_game(path)
+    except Exception as e:
+        return f"{path}: {type(e).__name__}: {str(e)[:160]}"
+    return d.with_columns(pl.lit(season).alias("season"), pl.lit(week).alias("week")) if d.height else None
+
+
+def cmd_offense_paths(a) -> int:
+    """Offensive skill players' first three seconds, every half second → <out>/offense_paths.parquet."""
+    import os
+    from concurrent.futures import ProcessPoolExecutor, as_completed
+
+    from .ngs.loader import iter_game_files
+
+    os.environ.setdefault("POLARS_MAX_THREADS", "1")
+    jobs = [(str(f), s, w) for s in a.seasons for w, f in iter_game_files(s, LocalDataConfig().root)]
+    frames, errors, done = [], [], 0
+    with ProcessPoolExecutor(max_workers=a.workers) as ex:
+        for fut in as_completed([ex.submit(_paths_job, j) for j in jobs]):
+            r = fut.result(); done += 1
+            if isinstance(r, str):
+                errors.append(r)
+            elif r is not None:
+                frames.append(r)
+            if done % 50 == 0 or done == len(jobs):
+                print(f"  {done}/{len(jobs)} games · {len(errors)} errors", flush=True)
+    out = pl.concat(frames, how="diagonal_relaxed")
+    out.write_parquet(Path(a.out) / "offense_paths.parquet")
+    print(f"wrote {out.height:,} skill-player snaps; errors {len(errors)}")
+    return 0
+
+
+def cmd_offense(a) -> int:
+    from .roles.offense import run_offense
+    run_offense(Path(a.out), Path(a.run_dir), seed=a.seed)
+    return 0
+
+
 def cmd_report(a) -> int:
     from .eval.report import build
 
@@ -493,6 +534,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("export-web"); s.add_argument("--web-public", default="web/public")
     s.add_argument("--run-dirs", nargs="*", default=["runs/2026-09-25_full", "runs/2026-09-26_v2"])
     s.add_argument("--sister-public", default=str(Path.home() / "panthers_projects" / "web" / "public")); s.set_defaults(fn=cmd_export_web)
+    s = sub.add_parser("offense-paths"); s.add_argument("--seasons", type=int, nargs="+", default=[2022, 2023, 2024, 2025])
+    s.add_argument("--workers", type=int, default=14); s.set_defaults(fn=cmd_offense_paths)
+    s = sub.add_parser("offense"); s.add_argument("--run-dir", required=True); s.add_argument("--seed", type=int, default=0); s.set_defaults(fn=cmd_offense)
     s = sub.add_parser("report"); s.add_argument("--run-dir", required=True); s.add_argument("--team", default="CAR"); s.add_argument("--names")
     s.set_defaults(fn=cmd_report)
     s = sub.add_parser("extend"); s.add_argument("--run-dir", required=True); s.add_argument("--source", default="auto", choices=["auto", "databricks", "local"]); s.set_defaults(fn=cmd_extend)
