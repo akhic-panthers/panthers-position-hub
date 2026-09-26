@@ -4,6 +4,7 @@ import "server-only";
 //   SearchForPlaysComplex(GSIS.GameKey = g, includeClips) → every play of the game, each carrying PFF's own keys
 //   (PFF.pff_GSISPLAYID = our gsis_play_id) and one clip per angle (SB SL EZ EZ2 TV) as a frame range inside a
 //   full-game MP4 at 59.94 fps; GetURLsForElement(MediaReferenceId) → the signed MP4 URL.
+//   Seek = MediaFrameStart / FPS — confirmed by eye in the app on 2026-09-26 (film starts at the snap).
 // Auth is `Authorization: API base64(user:pass)` — not Basic, not Bearer (sister repo evaluation/THUNDER.md).
 import fs from "node:fs";
 import path from "node:path";

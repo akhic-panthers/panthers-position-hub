@@ -56,14 +56,7 @@ Thunder works with the club's login. For every snap on the board:
 
 Coverage checked on regular-season snaps in every season: 2022 (ATL at CAR, three angles: end zone, sideline, scoreboard), 2023 (IND at NE, five angles), 2024 and 2025 (non-Panthers games and CAR at JAX, five angles). A new game takes about 7 seconds the first time and is cached for 30 minutes after.
 
-**Not verified here:** that the seek lands on the exact frame of the snap. Headless screenshots render video as
-black, so the check was structural only:
-- the scoreboard clip sits right before the sideline clip in the same file
-- every window sits inside the file's length
-- the play text matches the snap we asked for
-
-**The first time you open one, check that the video starts at the snap.** If it's off by a constant, it's a
-one-number fix in `web/lib/server/thunder.ts`.
+**Seek verified.** Headless screenshots render video black, so the build could only check the windows structurally. On 2026-09-26 Akhi opened the film in the app and confirmed it starts at the snap. Seek time = the clip's media start frame ÷ its FPS (59.94).
 
 ## Block map
 
