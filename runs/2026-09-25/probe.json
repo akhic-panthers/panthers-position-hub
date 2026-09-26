@@ -1,0 +1,54 @@
+{
+  "host": "https://adb-7405617646104787.7.azuredatabricks.net",
+  "ok": true,
+  "rungs": [
+    {
+      "name": "host",
+      "ok": true,
+      "detail": "HTTP 401",
+      "remedy": "the environment's network policy denies this host: add it to the allowed domains (Claude cloud env \u2192 Edit \u2192 Network access), or run from a laptop / the workspace notebook"
+    },
+    {
+      "name": "auth",
+      "ok": true,
+      "detail": "akhi.chappidi@panthers.nfl.com (Akhi Chappidi)",
+      "remedy": ""
+    },
+    {
+      "name": "catalog",
+      "ok": true,
+      "detail": "pff schemas: bronze, cff, cfl, default, gold, information_schema, silver, ufl",
+      "remedy": "ask the workspace admin for USE CATALOG on pff and USE SCHEMA on pff.bronze"
+    },
+    {
+      "name": "warehouse",
+      "ok": true,
+      "detail": "auto-picked Serverless Starter Warehouse [RUNNING] /sql/1.0/warehouses/9ab9914b91bb4986",
+      "remedy": "create or get CAN USE on a SQL warehouse, then set DATABRICKS_HTTP_PATH"
+    },
+    {
+      "name": "sql",
+      "ok": true,
+      "detail": "SELECT 1 via Statement Execution API on warehouse 9ab9914b91bb4986",
+      "remedy": ""
+    },
+    {
+      "name": "table:pffplays",
+      "ok": true,
+      "detail": "pff.bronze.pffplays: 1,029,604 rows, 303 cols",
+      "remedy": "column names differ from data_contracts/uc_tables.json: run `poshub discover` and update pff/loaders.py"
+    },
+    {
+      "name": "table:pffdefense",
+      "ok": true,
+      "detail": "pff.bronze.pffdefense: 9,278,069 rows, 56 cols",
+      "remedy": "column names differ from data_contracts/uc_tables.json: run `poshub discover` and update pff/loaders.py"
+    },
+    {
+      "name": "table:coverage_defense",
+      "ok": true,
+      "detail": "pff.bronze.coverage_defense: 1,234,678 rows, 45 cols",
+      "remedy": "column names differ from data_contracts/uc_tables.json: run `poshub discover` and update pff/loaders.py"
+    }
+  ]
+}

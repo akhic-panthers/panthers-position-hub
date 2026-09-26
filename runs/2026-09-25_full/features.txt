@@ -1,0 +1,63 @@
+Fri Sep 25 18:07:19 EDT 2026
+source: databricks:https://adb-7405617646104787.7.azuredatabricks.net
+pffplays: 214,213 plays, seasons [2022, 2023, 2024, 2025]
+pffdefense: 1,963,362 defender-snaps · coverage_defense: 709,461 rows
+  2022: 285 game files queued
+  2023: 285 game files queued
+  2024: 285 game files queued
+  2025: 285 game files queued
+  1140 games on 14 workers
+  25/1140 games · 34,794 defender-snaps · 0 errors
+  50/1140 games · 72,457 defender-snaps · 0 errors
+  75/1140 games · 109,638 defender-snaps · 0 errors
+  100/1140 games · 147,222 defender-snaps · 0 errors
+  125/1140 games · 184,837 defender-snaps · 0 errors
+  150/1140 games · 222,034 defender-snaps · 0 errors
+  175/1140 games · 259,327 defender-snaps · 0 errors
+  200/1140 games · 297,072 defender-snaps · 0 errors
+  225/1140 games · 335,576 defender-snaps · 0 errors
+  250/1140 games · 371,456 defender-snaps · 0 errors
+  275/1140 games · 408,701 defender-snaps · 0 errors
+  300/1140 games · 447,367 defender-snaps · 0 errors
+  325/1140 games · 485,864 defender-snaps · 0 errors
+  350/1140 games · 523,950 defender-snaps · 0 errors
+  375/1140 games · 561,797 defender-snaps · 0 errors
+  400/1140 games · 600,175 defender-snaps · 0 errors
+  425/1140 games · 637,993 defender-snaps · 0 errors
+  450/1140 games · 676,171 defender-snaps · 0 errors
+  475/1140 games · 714,061 defender-snaps · 0 errors
+  500/1140 games · 752,006 defender-snaps · 0 errors
+  525/1140 games · 790,149 defender-snaps · 0 errors
+  550/1140 games · 826,252 defender-snaps · 0 errors
+  575/1140 games · 863,976 defender-snaps · 0 errors
+  600/1140 games · 900,318 defender-snaps · 0 errors
+  625/1140 games · 938,366 defender-snaps · 0 errors
+  650/1140 games · 976,529 defender-snaps · 0 errors
+  675/1140 games · 1,013,880 defender-snaps · 0 errors
+  700/1140 games · 1,051,906 defender-snaps · 0 errors
+  725/1140 games · 1,089,703 defender-snaps · 0 errors
+  750/1140 games · 1,127,675 defender-snaps · 0 errors
+  775/1140 games · 1,165,872 defender-snaps · 0 errors
+  800/1140 games · 1,203,764 defender-snaps · 0 errors
+  825/1140 games · 1,241,613 defender-snaps · 0 errors
+  850/1140 games · 1,279,018 defender-snaps · 0 errors
+  875/1140 games · 1,317,061 defender-snaps · 0 errors
+  900/1140 games · 1,354,939 defender-snaps · 0 errors
+  925/1140 games · 1,393,125 defender-snaps · 0 errors
+  950/1140 games · 1,430,570 defender-snaps · 0 errors
+  975/1140 games · 1,468,328 defender-snaps · 0 errors
+  1000/1140 games · 1,505,968 defender-snaps · 0 errors
+  1025/1140 games · 1,542,347 defender-snaps · 0 errors
+  1050/1140 games · 1,580,326 defender-snaps · 0 errors
+  1075/1140 games · 1,617,544 defender-snaps · 0 errors
+  1100/1140 games · 1,653,308 defender-snaps · 0 errors
+  1125/1140 games · 1,690,209 defender-snaps · 0 errors
+  1140/1140 games · 1,712,656 defender-snaps · 0 errors
+  play spine: tracking plays with a snap 155,734; in pffplays 155,734 (100.0%); PFF run+pass plays in these games 148,891, with a tracked snap 147,172 (98.8%) — the gap is plays with no ball_snap event in the frames (report it; do not paper over it)
+  ngsdb.bronze.player_play: 1,677,968 defender rows, joined 94.5% of defender-snaps
+wrote out/features.parquet: 1,712,656 defender-snaps, PFF join 95.7%, charted responsibility 94.2%
+
+real	272m24.545s
+user	250m31.245s
+sys	636m10.583s
+Fri Sep 25 22:39:44 EDT 2026

@@ -5,6 +5,7 @@
 # data — lives in Databricks / PANTHERS_DATA_DIR, never in git
 /data/
 *.parquet
+!runs/**/*.md
 *.duckdb
 *_NGS_Player_Play/
 derived/
@@ -18,7 +19,16 @@ build/
 dist/
 *.egg-info/
 .venv/
-# outputs
+# outputs (out/ is scratch; runs/<stamp>/ holds pushed aggregates only)
 out/
+out_smoke/
 viewer/data/*.json
 !viewer/data/.gitkeep
+
+# web app
+web/node_modules/
+web/.next/
+web/public/ph/
+web/.env*
+!web/.env.example
+web/*.tsbuildinfo

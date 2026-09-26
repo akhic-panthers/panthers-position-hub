@@ -17,16 +17,22 @@ from ..roles.taxonomy import ALIGN_ROLES, PRIMARY_ROLES_OF_GROUP, RESPONSIBILITI
 
 CAVEATS = [
     "Role shares are DESCRIPTIVE: what the tracking says he did on his snaps this season. They are not a grade and not a projection.",
-    "Alignment shares are mean probabilities over snaps (soft). Hard shares (argmax) are carried beside them; the gap between the two is the geometric ambiguity of his alignments.",
+    "Alignment shares count the role he lined up in on each snap, read from the tracking at the snap. In v1 the per-snap call is effectively certain, so a share is a count, not a blend of probabilities.",
     "Responsibility on pass snaps is PFF's charted assignment where charted; otherwise the tracking model's estimate. Run snaps are geometric (run fit / rush).",
     "Percentiles are within roster position group and season, among players above the snap floor. A high percentile means MORE of that job than peers, not better at it.",
     f"Players under {MIN_SNAPS_FOR_MIX} snaps are not shown; percentiles need {MIN_SNAPS_FOR_PERCENTILE}.",
     "Left and right are folded: the mirror image of a job is the same job.",
+    "For safeties, the one-high / two-high split shows how much of the mix is the call. Where the call explains most of it, the mix describes the defense he plays in as much as the player.",
 ]
 
 
 def export_viewer_json(mix: pl.DataFrame, out: Path, gates: list[dict] | None = None, source: str = "",
-                       team_mix: pl.DataFrame | None = None) -> dict:
+                       team_mix: pl.DataFrame | None = None, call: pl.DataFrame | None = None) -> dict:
+    calls = {}
+    if call is not None and call.height:
+        for c in call.iter_rows(named=True):
+            calls[(c["nfl_id"], c["season"])] = {k: c[k] for k in ("deep_share_one_high", "deep_share_two_high", "middle_share_one_high",
+                                                                    "box_share_one_high", "call_explains")}
     players = []
     for r in mix.iter_rows(named=True):
         align = {role: r.get(f"share_{role}") for role in ALIGN_ROLES if r.get(f"share_{role}") is not None}
@@ -40,6 +46,7 @@ def export_viewer_json(mix: pl.DataFrame, out: Path, gates: list[dict] | None = 
             "mean_depth": r.get("mean_depth"), "box_rate": r.get("box_rate"),
             "mean_bite_2s": r.get("mean_bite_2s"), "mean_ground_covered_2s": r.get("mean_ground_covered_2s"),
             "align": align, "align_hard": hard, "resp": resp, "pct": pct,
+            "by_call": calls.get((r["nfl_id"], r.get("season"))),
         })
     doc = {
         "meta": {
@@ -66,7 +73,7 @@ def export_viewer_json(mix: pl.DataFrame, out: Path, gates: list[dict] | None = 
     if team_mix is not None:
         doc["teams"] = team_mix.to_dicts()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(doc, indent=1, default=_json_default))
+    out.write_text(json.dumps(_clean(doc), indent=1, default=_json_default, allow_nan=False))
     return doc
 
 
@@ -76,3 +83,44 @@ def _json_default(o):
     if isinstance(o, float) and math.isnan(o):
         return None
     return str(o)
+
+
+def export_pos_boards(mix: pl.DataFrame, out: Path, gates: list[dict] | None = None) -> dict:
+    """The sister app's board shape (web/public/dev/pos_boards.json: {meta, boards: {GROUP: {players: [...]}}}),
+    keyed by `gsis` = nfl_id like the existing boards. One row per player, seasons nested. No composite score."""
+    boards: dict[str, dict] = {}
+    for (grp,), g in mix.group_by("peer_group"):
+        players = []
+        for (nid,), pg in g.group_by("nfl_id"):
+            pg = pg.sort("season")
+            last = pg.row(-1, named=True)
+            seasons = [{"season": r["season"], "team": r.get("team"), "snaps": r["snaps"], "primary_role": r.get("primary_role"),
+                        "align": {k: round(r[f"share_{k}"], 4) for k in ALIGN_ROLES if r.get(f"share_{k}") is not None},
+                        "resp": {k: round(r[f"resp_{k}"], 4) for k in RESPONSIBILITIES if r.get(f"resp_{k}") is not None},
+                        "pct": {k[4:]: round(v, 1) for k, v in r.items() if k.startswith("pct_") and v is not None and v == v},
+                        "align_entropy": r.get("align_entropy"), "mean_depth": r.get("mean_depth"), "box_rate": r.get("box_rate")}
+                       for r in pg.iter_rows(named=True)]
+            players.append({"gsis": nid, "name": last.get("player_name"), "team": last.get("team"), "last": last["season"],
+                            "n": int(pg["snaps"].sum()), "n_seasons": pg.height, "primary_role": last.get("primary_role"), "seasons": seasons})
+        boards[f"ROLE_{grp}"] = {"headline": "primary_role", "players": sorted(players, key=lambda p: -p["n"])}
+    doc = {"meta": {"attribution": "Position hub — per-snap alignment role and responsibility from NGS tracking geometry with PFF charting as the check; "
+                                   "player-season role mix = mean over snaps. Method after Eager & Seth (2023) for the 2 s window.",
+                    "caveats": CAVEATS, "roles": {"align": ALIGN_ROLES, "resp": RESPONSIBILITIES, "labels": ROLE_LABEL}, "gates": gates or []},
+           "boards": boards}
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(_clean(doc), default=_json_default, allow_nan=False))
+    return doc
+
+
+def _clean(o):
+    """NaN / inf → null, recursively. A bare NaN breaks JSON.parse in every browser (sister-project landmine; hit again
+    here on the first real export, 2026-09-25). `allow_nan=False` on the dump makes a miss loud instead of silent."""
+    import math
+
+    if isinstance(o, float):
+        return None if (math.isnan(o) or math.isinf(o)) else o
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    return o

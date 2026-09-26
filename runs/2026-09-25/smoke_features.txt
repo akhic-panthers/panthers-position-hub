@@ -1,0 +1,9 @@
+source: databricks:https://adb-7405617646104787.7.azuredatabricks.net
+pffplays: 52,937 plays, seasons [2025]
+pffdefense: 484,887 defender-snaps · coverage_defense: 172,472 rows
+  2025: 2 game files queued
+  2 games on 2 workers
+  2/2 games · 2,893 defender-snaps · 0 errors
+  play spine: tracking plays with a snap 264; in pffplays 264 (100.0%); PFF run+pass plays in these games 249, with a tracked snap 248 (99.6%) — the gap is plays with no ball_snap event in the frames (report it; do not paper over it)
+  ngsdb.bronze.player_play: 413,820 defender rows, joined 94.0% of defender-snaps
+wrote out_smoke/features.parquet: 2,893 defender-snaps, PFF join 95.1%, charted responsibility 93.7%

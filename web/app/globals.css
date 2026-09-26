@@ -1,0 +1,150 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #0a0c0e;
+  --card: #15191e;
+  --border: #262c33;
+  --foreground: #e6eaed;
+  --muted: #8a949c;
+  --panthers-blue: #0085ca;
+  --panthers-bright: #1ca3e0;
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+/* tabular numbers everywhere numbers are shown in tables/stats */
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* horizontal nav: scroll when links overflow viewport */
+.nav-scroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+/* thin dark scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a313a; border-radius: 6px; border: 2px solid var(--background); }
+::-webkit-scrollbar-thumb:hover { background: #3a434b; }
+
+/* subtle radial glow used on hero / cards */
+.glow-blue {
+  position: relative;
+  overflow: hidden;
+}
+.glow-blue::after {
+  content: "";
+  position: absolute;
+  right: -60px;
+  top: -60px;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(28, 163, 224, 0.22), transparent 70%);
+  pointer-events: none;
+}
+
+.katex { color: var(--foreground); }
+
+/* ── side-nav flyout: slides in beside the icon rail ── */
+@keyframes nav-flyout-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.nav-flyout { animation: nav-flyout-in 160ms ease-out; }
+
+/* tracked-caps eyebrow — the section voice above every page title */
+.eyebrow {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+}
+
+/* ── leverage report PDF export — a LIGHT, readable document ──────────────────
+   The lab panels are dark-themed. For a shareable report a coach can read (Eric's
+   team ships light PDFs), the assembled document flips to a light "paper" theme.
+   Overrides are scoped to `.leverage-print` and apply on screen too, so the preview
+   is exactly what prints. Data colors (chart fills, gate tints) are kept; only the
+   dark chrome — text, backgrounds, borders, near-white axis lines — is inverted. */
+.leverage-print { background:#ffffff; color:#141a20; border-radius:14px; }
+.leverage-print [class*="text-white"]           { color:#141a20 !important; }
+.leverage-print [class*="text-muted"]            { color:#5c6672 !important; }
+.leverage-print [class*="text-panthers-bright"]  { color:#0a6aa8 !important; }
+.leverage-print [class*="text-amber-3"]          { color:#b45309 !important; }
+.leverage-print [class*="text-emerald-3"],
+.leverage-print [class*="text-emerald-4"]        { color:#047857 !important; }
+.leverage-print [class*="text-rose-3"]           { color:#be123c !important; }
+/* the After-the-snap read column uses an arbitrary light grey (text-[#c9d2d9]) that
+   neither text-white nor text-muted catch — it was the "can't read it" text on white */
+.leverage-print [class*="c9d2d9"]                { color:#1c2530 !important; }
+.leverage-print [class*="bg-white/"]             { background:#f5f6f8 !important; }
+.leverage-print [class*="bg-ink"]                { background:#ffffff !important; }
+.leverage-print [class*="bg-black/"]             { background:#eef0f3 !important; }
+.leverage-print [class*="border-white"],
+.leverage-print [class*="border-ink"]            { border-color:#e2e5ea !important; }
+.leverage-print [class*="from-ink"],
+.leverage-print [class*="to-ink"]                { --tw-gradient-from:#f8fafc !important; --tw-gradient-to:#ffffff !important; }
+.leverage-print-cover                            { background:linear-gradient(135deg,#eaf4fb,#ffffff) !important; border-color:#cfe3f2 !important; }
+.leverage-print svg [stroke^="#fff"], .leverage-print svg [stroke^="#FFF"] { stroke:#c7ccd3 !important; }
+.leverage-print svg [fill^="#fff"],   .leverage-print svg [fill^="#FFF"]   { fill:#9aa1aa !important; }
+
+/* NO FILM IN THE REPORT. Film links are dead in a PDF, so film-only columns and inline
+   film affordances are dropped from the document entirely — in the preview AND the PDF,
+   so the two match. (The live tabs, not inside .leverage-print, keep their film links.) */
+.leverage-print .leverage-film-col,
+.leverage-print .leverage-film-link { display: none !important; }
+.leverage-print svg a { pointer-events: none; }
+
+@media print {
+  /* the report is portaled to <body>; hide every OTHER top-level node so only it prints,
+     and let it flow (static, not fixed) so it paginates instead of repeating per page */
+  body > *:not(.leverage-print-portal) { display: none !important; }
+  .leverage-print-portal { position: static !important; overflow: visible !important; background:#fff !important; }
+  .leverage-print-backdrop { background:#fff !important; }
+  .no-print { display: none !important; }
+  html, body, .leverage-print { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; background:#fff !important; }
+  @page { margin: 13mm 11mm; size: A4; }
+
+  /* a report is a snapshot, not a control surface — drop the per-panel pickers/toggles */
+  .leverage-print select,
+  .leverage-print label:has(select),
+  .leverage-print input,
+  .leverage-print .inline-flex:has(> button) { display: none !important; }
+
+  .leverage-print { box-shadow:none !important; border-radius:0 !important; padding:0 !important; }
+  .leverage-print-cover { break-after: page; page-break-after: always; }
+  /* let content FLOW to fill each page — only keep charts whole and rows unsplit, and repeat a
+     table's header when it breaks across a page. Avoiding breaks inside whole sections left tall
+     ones (the 16-row game table) jumping to fresh pages with half-empty pages before them. */
+  .leverage-print-section { break-inside: auto; }
+  .leverage-print-section > div:first-child { break-after: avoid; }   /* heading stays with its panel */
+  .leverage-print svg { break-inside: avoid; page-break-inside: avoid; }
+  .leverage-print tr { break-inside: avoid; page-break-inside: avoid; }
+  .leverage-print thead { display: table-header-group; }
+}
+
+/* ── Panthers AI split view: the assistant docks right, the page shares the screen ── */
+html.ai-split .ai-content {
+  margin-right: min(44vw, 560px);
+  transition: margin-right 0.25s ease;
+}
+.ai-content { transition: margin-right 0.25s ease; }

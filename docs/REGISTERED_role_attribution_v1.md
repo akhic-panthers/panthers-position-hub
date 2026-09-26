@@ -42,16 +42,61 @@ Also reported, not gated: per-role r in G3; the soft-vs-hard share gap distribut
 - Descriptive vs predictive: shares and percentiles ship as **ratings of deployment**. Nothing here is a projection or a grade, and the viewer's copy says so.
 - A bug is never a finding.
 
+## Amendment v1.1 — rule defects fixed in Phase 1, BEFORE any gate was read (2026-09-25)
+The first two real games (2025 wk 1) were checked against PFF's charted slot and against NGS's own per-snap
+defender role (`ngsdb.bronze.player_play.ngs_position`, found by `poshub discover`). Five rule defects were
+ordering or mis-applied constants, not new thresholds; each has a planted regression test in
+`tests/test_rules_vocab.py` and is written out in the `roles/rules.py` docstring:
+press corners read EDGE · 5/6/7-techniques read INTERIOR (the box pad was the on-line edge line) · backers at
+6–7 yd in the box read BOX_SAFETY · off corners with inside leverage read BOX_SAFETY · a head-up 0.0 yd became
+99 yd. One constant is reused in a new place: the registered 4 yd corner constant as the minimum width outside
+the tackle for a corner on the line or an off corner (measured: press corners p5 4.1 yd, on-line edges p90 3.2).
+Rule vs PFF family on the smoke games 73% → 86%; vs NGS role 78% → 89%.
+
+Two gate constructions were also defective and are fixed: **G2b scored `resp_role`, which is overwritten by the
+charted label where one exists** (the synthetic 1.000 below was that tautology; G2b now scores
+`resp_model_role`, the model's own answer), and G2a had no real-data truth column (now the consensus label on
+held-out games). The bars are unchanged. After this amendment nothing in `rules.py` moves until a v2 registration.
+
 ## Synthetic dry run (plumbing only, 2026-09-25)
 Eight synthetic games, 3,960 defender-snaps, safeties designed to swap box/deep jobs on 35% of snaps:
 G1 0.969 · G2a 0.946 (majority 0.18) · G2b 1.000 · G3 0.999 · G4 −0.06. The designed 65/35 safety
 split was recovered. **This proves the code runs and the destruction control bites. It says nothing
 about NFL football.** First real run: fill the table below.
 
+## First real run — 2022–2025, filled 2026-09-25 (`runs/2026-09-25_full/`)
+
+Population: 1,139 games, 147,172 run and pass plays, 1,618,666 defender-snaps. Holdout = weeks 17–18 of each
+season (127 games), never trained on. Consensus label coverage (rule ∧ PFF family agree): **83.4%** of snaps.
+
 | gate | value | bar | n | verdict |
 |---|---|---|---|---|
-| G1 | | 0.80 | | |
-| G2a | | maj + 0.15 | | |
-| G2b | | maj + 0.15 | | |
-| G3 | | 0.70 | | |
-| G4 | | < 0.5 × G3 | | |
+| G1 PFF agreement | 0.836 | 0.80 | 1,618,404 | **GO** |
+| G2a alignment, held-out games | 1.000 | maj 0.370 + 0.15 | 145,919 | **VOID** — see below |
+| G2b responsibility, held-out charted pass snaps | 0.804 | maj 0.382 + 0.15 = 0.532 | 54,830 | **GO** |
+| G3 split-half (even vs odd games) | 0.963 | 0.70 | 2,575 | **GO** |
+| G4 destruction (within-play shuffle) | 0.204 | < 0.5 × 0.963 | 2,575 | **GO** |
+
+**G2a is void, and the containment tripwire is why.** The consensus label is the rule wherever it exists, and the
+rule is a deterministic function of the alignment features, so a tree ensemble reproduces it on unseen games at
+1.000 by construction. That is the "model beats its own label source" case this registration said to stop on.
+What the model adds, measured on held-out games against labels it never saw:
+
+| label | rule top-1 | model top-1 |
+|---|---|---|
+| PFF charted slot → family | 0.814 | 0.826 |
+| NGS `ngs_position` → family | 0.865 | 0.869 |
+
+The model equals the rule on 98.6% of held-out snaps and its top probability is ≥ 0.9 on 98.8%. The v1 position
+field is therefore a **count of per-snap rule roles, not a soft probability**: soft-vs-hard share gap median 0.1%,
+p90 0.3% (all peer groups). The mix is still stable and his own (G3, G4); the "soft" framing is withdrawn for v1.
+
+Also reported, not gated:
+- per-role split-half r: edge 0.99 · interior 0.99 · off-ball LB 0.99 · boundary CB 0.99 · deep half 0.96 ·
+  deep middle 0.95 · slot 0.94 · box safety 0.91 · **overhang 0.67** (the class is nearly empty; see v2_candidates.md)
+- one-high vs two-high: the played call (`pff_MOFOCPLAYED`) explains a median **1%** (IQR 0–4%) of the variance in a
+  safety's per-snap deep alignment; the shown call 4%. For 0 of 423 safeties does either explain half. **A safety's mix
+  is his deployment, not the call** — consistent with G4. The viewer shows the split per safety.
+- a population defect was found after the first read of these gates (penalties, no-plays, kneels and spikes were in —
+  5.5% of tracked plays, where the geometric fallback called corners rushers). Fixed and re-run; the pre-fix table is
+  in `runs/2026-09-25_full/prefix/gates.md` (G1 0.834, G3 0.960, G4 0.254). No threshold moved.

@@ -1,0 +1,274 @@
+
+== ngsdb.bronze.player_play: 114 cols
+   game_id:int, gsis_play_id:smallint, nfl_id:int, season:smallint, season_type:string, week:smallint, game_key:int, team_id:string, opponent_team_id:string, team_abbr:string, esb_id:string, gsis_id:string, player_name:string, first_name:string, last_name:string, short_name:string, position:string, position_group:string, jersey_number:smallint, play_type:string, quarter:smallint, down:smallint, yards_to_go:smallint, possession_team_id:string, pass_yards:smallint, rec_yards:smallint, rush_yards:smallint, yards_after_catch:smallint, x_at_snap:float, y_at_snap:float, was_running_route:varchar(5), playing_high_safety:varchar(5), mc_play:varchar(5), lined_up_as_qb:varchar(5), playtime_play:varchar(5), no_play:varchar(5), exclude_leader:varchar(5), ball_carrier:varchar(5), tackler:varchar(5), interceptor:varchar(5), participant:varchar(5), target:varchar(5), offense_play:varchar(5), defense_play:varchar(5), st_play:varchar(5), scoring_play:varchar(5), scramble_yards:float, in_play_dist:float, max_speed:float, x_ball_at_snap:float, y_ball_at_snap:float, redzone_play:varchar(5), offense_formation:string, defenders_in_the_box:smallint, drop_back_type:string, drop_back_distance:float, drop_back_time:string, avg_separation_to_qb:float, cushion:float, receiver_location_type:string, lined_up_in_the_box:varchar(5), blitzing:varchar(5), depth_from_los_at_snap:float, pass_location_type:string, defender_location_type:string, left_or_right_of_center:string, separation_to_qb:float, caused_pressure:varchar(5), nearest_teammate_id:int, nearest_teammate_distance:float, stat_ids:string, Play_Direction:varchar(10), run_stuff_eligible:boolean, count_performance:boolean, ngs_position:varchar(13), ngs_position_group:varchar(2), max_sustained_speed_for5:float, max_sustained_speed_for10:float, max_sustained_speed_for15:float, max_sustained_speed_for20:float, max_sustained_speed_for25:float, max_sustained_speed_for30:float, max_sustained_speed_for35:float, max_sustained_speed_for40:float, max_sustained_speed_for45:float, max_sustained_speed_for50:float, pressure_caused_turnover:boolean, pass_defended:boolean, hurried_qb:boolean, time_to_qb_hurry:float, player_get_off:float, max_speed_until_pass_arrival:float, max_speed_until_pass_arrival_first_second:float, max_speed_until_pass_arrival_first_two_seconds:float, max_speed_until_pass_arrival_first_three_seconds:float, x_at_end_of_play:float, y_at_end_of_play:float, distance_from_lineset_to_snap:float, return_yards:int, recovered_fumble:boolean, fumble:boolean, fumble_lost:boolean, caused_forced_fumble:boolean, in_motion_at_ball_snap:boolean, shift_since_lineset:boolean, score_differential:smallint, yards:smallint, qb_kneel:boolean, caused_pressure_at_pass_forward:boolean, is_called_pass:boolean, missed_tackles_forced:int, motion_since_lineset:boolean, pass_blocking:boolean, time_to_pressure:float
+
+== ngsdb.bronze.player_position: 27 cols
+   game_key:string, season:int, season_type:string, week:int, nfl_id:bigint, time:timestamp_ntz, team_id:string, gsis_id:string, esb_id:string, player_name:string, jersey_number:int, position:string, position_group:string, is_on_field:boolean, x:double, y:double, z:double, s:double, a:double, dis:double, o:double, dir:double, gsis_play_id:bigint, event:string, sa:double, _source_file:string, _ingest_timestamp:timestamp
+
+== ngsdb.bronze.ball_position_data: 17 cols
+   game_id:int, time:timestamp, ball_id:varchar(128), is_on_field:boolean, x:float, y:float, z:float, s:float, a:float, dis:float, dir:float, o:float, in_play:boolean, game_key:int, gsis_play_id:int, event:varchar(32), sa:float
+
+== ngsdb.bronze.plays: 74 cols
+   game_id:int, gsis_play_id:int, game_key:int, play_description:varchar(2147483647), play_state:varchar(24), season:int, season_type:varchar(24), week:int, play_type:varchar(32), stat_file_name:varchar(24), yardline_side:varchar(24), absolute_yardline_number:int, yardline_number:int, time_of_date_utc:timestamp, penalty:varchar(5), home_score:int, visitor_score:int, play_sequence:double, play_description_with_jersey_numbers:varchar(2147483647), play_type_code:int, quarter:int, down:int, yards_to_go:int, possession_team:varchar(24), possession_team_id:varchar(24), clock_time:varchar(24), yard_line:varchar(24), time_of_day:varchar(150), end_clock_time:varchar(24), scoring_play:varchar(5), end_quarter_play:varchar(5), drive_play_count:int, drive_net_yards:int, drive_time_possession:varchar(24), pre_play_by_play:varchar(24), goal_to_go:varchar(5), redzone_play:varchar(5), next_play_type:varchar(24), next_play_is_goal_to_go:varchar(5), pr_comment:varchar(24), special_teams_play:varchar(5), st_play_type:int, play_clock:int, drive_sequence_number:int, playtime_play:varchar(5), no_play:varchar(5), play_direction:varchar(24), successful:varchar(5), qb_kneel:varchar(5), pre_snap_home_score:int, pre_snap_visitor_score:int, big_play:varchar(5), pre_snap_home_team_win_probability:double, pre_snap_visitor_team_win_probability:double, home_team_win_probability_added:double, visitor_team_win_probability_added:double, pre_snap_field_goal_probability:double, post_play_field_goal_probability:double, play_action:varchar(5), change_of_possession:varchar(5), score_type:varchar(30), expected_points:double, expected_points_added:double, actual_yards_to_go:double, actual_yardline_for_first_down:double, post_play_home_team_win_probability:double, post_play_visitor_team_win_probability:double, seconds_left_in_game:int, seconds_left_in_half:int, possession_team_net_yards_gained:int, played_out_play:varchar(5), start_game_clock:varchar(5), end_game_clock:varchar(5), Expr1:varchar(24)
+
+== ngsdb.bronze.game_event: 14 cols
+   game_event_key:bigint, id:int, game_id:int, name:string, time:timestamp, offset:bigint, game_key:int, type:string, nfl_audited:varchar(5), source:string, comment:string, zero_point:varchar(5), gsis_play_id:int, is_distinct:boolean
+
+== panthers_databricks_storage_catalog.ngs.bronze_player_tracking: 27 cols
+   game_key:string, season:int, season_type:string, week:int, nfl_id:bigint, time:timestamp_ntz, team_id:string, gsis_id:string, esb_id:string, player_name:string, jersey_number:int, position:string, position_group:string, is_on_field:boolean, x:double, y:double, z:double, s:double, a:double, dis:double, o:double, dir:double, gsis_play_id:bigint, event:string, sa:double, _source_file:string, _ingest_timestamp:timestamp
+
+== panthers_databricks_storage_catalog.ngs.silver_player_tracking: 30 cols
+   game_key:string, season:int, season_type:string, week:int, nfl_id:bigint, time:timestamp_ntz, team_id:string, gsis_id:string, esb_id:string, player_name:string, jersey_number:int, position:string, position_group:string, is_on_field:boolean, x:double, y:double, z:double, s:double, a:double, dis:double, o:double, dir:double, gsis_play_id:bigint, event:string, sa:double, _source_file:string, _ingest_timestamp:timestamp, speed_mph:double, is_sprinting:boolean, movement_angle_diff:double
+
+== panthers_databricks_storage_catalog.ngs.gold_play_player_summary: 15 cols
+   game_key:bigint, gsis_play_id:bigint, nfl_id:bigint, player_name:string, team_id:string, position:string, position_group:string, play_duration_seconds:double, total_distance_yards:double, avg_speed_mph:double, max_speed_mph:double, start_x:double, start_y:double, end_x:double, end_y:double
+
+== fbresearch.bronze.hp_rep_tracking: 4 cols
+   FSR:int, nfl_player_id:double, Pos:varchar(255), activity_id:varchar(255)
+
+== lakebase_scouting_dev.public.ngs_tracking: 0 cols
+   
+
+== ngsdb.bronze.player_play by season
+season season_type      n  games wmin wmax  ball_fill  depth_fill
+  2016        POST  39884     11   18   22    0.99779     0.98563
+  2016         PRE 225234     63    1    4    0.99301     0.03370
+  2016         PRO   3209      1   21   21    0.94671     0.77501
+  2016         REG 935770    256    1   17    0.99523     0.97587
+  2017        POST  40314     11   18   22    0.99727     0.98564
+  2017         PRE 223513     63    1    4    0.99435     0.05223
+  2017         PRO   2882      1   21   21    0.99202     0.19813
+  2017         REG 926549    256    1   17    0.99364     0.97779
+  2018        POST  40428     11   18   22    0.98145     0.97764
+  2018         PRE 230763     64    1    4    0.98465     0.97507
+  2018         PRO   2789      1   21   21    0.98422     0.98422
+  2018         REG 921414    256    1   17    0.98527     0.97686
+  2019        POST  39070     11   18   22    0.97689     0.96900
+  2019         PRE 229696     64    1    4    0.98268     0.97286
+  2019         PRO   2991      1   21   21    0.94851     0.94851
+  2019         REG 928282    256    1   17    0.98476     0.97742
+  2020        POST  46862     13   18   22    0.98404     0.98306
+  2020         REG 929049    256    1   17    0.98543     0.97927
+  2021        POST  46169     13   19   23    0.98616     0.97663
+  2021         PRE 163229     47    1    3    0.98185     0.97437
+  2021         PRO   3101      1   22   22    0.99968     0.99258
+  2021         REG 972924    272    1   18    0.98448     0.97783
+  2022        POST  46493     13   19   23    0.99101     0.97778
+  2022         PRE 168257     48    1    3    0.97786     0.97078
+  2022         PRO   1632      1   22   22    1.00000     0.99326
+  2022         REG 962857    272    1   18    0.98856     0.97819
+  2023        POST  46439     13   19   23    0.99053     0.98295
+  2023         PRE 168583     48    0    3    0.98712     0.97363
+  2023         REG 969153    272    1   18    0.99021     0.97741
+  2024        POST  45164     13   19   23    0.99021     0.97852
+  2024         PRE 168415     49    0    3    0.98741     0.98014
+  2024         REG 964926    272    1   18    0.98892     0.97569
+  2025        POST  46961     13   19   23    0.98548     0.98876
+  2025         PRE 170518     49    0    3    0.98780     0.97588
+  2025         REG 947044    272    1   18    0.97958     0.98162
+  2026         PRE 168352     49    0    3    0.98834     0.98762
+  2026         REG 115659     33    1    3    0.98705     0.98600
+
+== ngsdb.bronze.player_position by season (frame-level)
+ season season_type         n  games
+   2016        POST  30677630     11
+   2016         PRE    225234     63
+   2016         REG 664560774    256
+   2017        POST  33807679     11
+   2017         PRE    223513     63
+   2017         REG 652099965    253
+   2018        POST  34216079     11
+   2018         PRE    230763     64
+   2018         REG 669460478    256
+   2019        POST  28135299     11
+   2019         PRE    229696     64
+   2019         REG 627124356    256
+   2020        POST  32645096     13
+   2020         REG 619403828    256
+   2021        POST  32528601     13
+   2021         PRE    163229     47
+   2021         REG 692345460    272
+   2022        POST  33507380     13
+   2022         PRE    168257     48
+   2022         REG 674896791    271
+   2023        POST  32935589     13
+   2023         PRE    168583     48
+   2023         REG 690224984    272
+   2024        POST  32691383     13
+   2024         PRE    168415     49
+   2024         REG 683501303    272
+   2025        POST  31406057     13
+   2025         PRE 104977930     49
+   2025         REG 668520897    272
+   2026         PRE  60143733     40
+   2026         REG  44649246     33
+
+== ngsdb.bronze.ball_position_data games/rows
+        n  games  gk_min  gk_max
+123576728   2898   57170   60498
+
+== ngsdb.bronze.plays seasons
+ season season_type     n  games
+   2016        POST  1960     11
+   2016         PRE 11289     64
+   2016         PRO   163      1
+   2016         REG 46426    256
+   2017        POST  1990     11
+   2017         PRE 11343     64
+   2017         PRO   131      1
+   2017         REG 45846    256
+   2018        POST  2014     11
+   2018         PRE 11355     64
+   2018         PRO   135      1
+   2018         REG 45648    256
+   2019        POST  1944     11
+   2019         PRE 11469     65
+   2019         PRO   149      1
+   2019         REG 46091    256
+   2020        POST  2318     13
+   2020         REG 46028    256
+   2021        POST  2298     13
+   2021         PRE  8264     48
+   2021         PRO   151      1
+   2021         REG 48251    272
+   2022        POST  2306     13
+   2022         PRE  8443     49
+   2022         PRO   154      1
+   2022         REG 47870    272
+   2023        POST  2487     13
+   2023         PRE  9081     49
+   2023         REG 51712    272
+   2024        POST  2480     13
+   2024         PRE  8951     49
+   2024         REG 52630    272
+   2025        POST  2582     13
+   2025         PRE  6253     34
+   2025         REG 51530    271
+   2026         PRE  8944     49
+   2026         REG  6333     33
+
+== player_play defender_location_type × 2024 defense
+Empty DataFrame
+Columns: [defender_location_type, n]
+Index: []
+
+== player_play playing_high_safety / lined_up_in_the_box / blitzing values
+Empty DataFrame
+Columns: [playing_high_safety, lined_up_in_the_box, blitzing, n]
+Index: []
+
+== player_play Play_Direction / ngs_position / defense_play values
+Play_Direction      n
+          left 593355
+         right 585106
+          None     44
+Empty DataFrame
+Columns: [ngs_position, position, n]
+Index: []
+defense_play offense_play st_play      n
+           0            1       0 491024
+           1            0       0 491007
+           0            0       1 196439
+           0            0       0     21
+           1            0       1      7
+           0            1       1      7
+
+== player_play 2024 REG defense: defender_location_type
+defender_location_type     n
+                  NINE 59082
+                SAFETY 54155
+             LEFT_WIDE 35286
+            RIGHT_WIDE 35245
+                 THREE 30968
+                   ONE 20674
+            RIGHT_SLOT 17010
+             LEFT_SLOT 16971
+            THREE_ZERO 14321
+              ONE_ZERO 13116
+                  FOUR 12928
+                  None 11005
+                   TWO 10542
+             NINE_ZERO 10439
+             FIVE_ZERO  8160
+              TWO_ZERO  7611
+                 SEVEN  7579
+             FOUR_ZERO  7571
+                  FIVE  6891
+                   SIX  5778
+                  ZERO  5250
+            SEVEN_ZERO  4362
+             ZERO_ZERO  3593
+              SIX_ZERO  3041
+
+== playing_high_safety × lined_up_in_the_box × blitzing
+playing_high_safety lined_up_in_the_box blitzing      n
+                  0                   1        0 140389
+                  0                   0        0 120584
+                  0                   1        1  84180
+                  1                   0        0  52825
+                  0                   0        1   3379
+                  1                   1        0    184
+                  1                   0        1     36
+                  1                   1        1      1
+
+== ngs_position vs roster position (defense)
+ ngs_position position     n
+           CB       CB 66743
+INTERIOR_LINE       DT 46043
+         EDGE       DE 38316
+          MLB      ILB 31234
+         EDGE      OLB 30070
+  HIGH_SAFETY       FS 26642
+  HIGH_SAFETY       SS 22978
+      SLOT_CB       CB 17389
+INTERIOR_LINE       DE 15541
+INTERIOR_LINE       NT 11252
+          OLB      ILB  9102
+          MLB      MLB  6067
+      SLOT_CB       FS  5855
+          MLB      OLB  5650
+      SLOT_CB       SS  5253
+          OLB       FS  4419
+          OLB       SS  4285
+          OLB       CB  4034
+INTERIOR_LINE      ILB  3743
+         EDGE      ILB  3663
+  HIGH_SAFETY       CB  3094
+      SLOT_CB      ILB  2999
+         EDGE       DT  2962
+INTERIOR_LINE      OLB  2678
+         None       CB  2615
+          OLB      OLB  2179
+           CB       FS  1968
+          OLB      MLB  1851
+      SLOT_CB      OLB  1754
+         None       DE  1593
+         None      ILB  1378
+         EDGE       SS  1336
+         None       DT  1320
+         None       FS  1239
+         None      OLB  1226
+          MLB       SS  1157
+         EDGE       FS  1147
+          MLB       FS  1113
+         None       SS   983
+         EDGE       CB   911
+           CB       SS   903
+          MLB       CB   725
+INTERIOR_LINE      MLB   626
+      SLOT_CB      MLB   500
+           CB      ILB   463
+
+== depth_from_los_at_snap by ngs_position (defense, 2024 REG)
+ ngs_position     n  mean_depth   med    sd
+INTERIOR_LINE 80362        0.66  0.63  0.36
+         EDGE 79330        0.61  0.57  0.39
+           CB 70531        4.36  4.45  2.94
+  HIGH_SAFETY 53059       12.38 12.23  3.24
+          MLB 46212        4.35  4.37  0.94
+      SLOT_CB 33981        4.00  3.89  2.51
+          OLB 26002        4.04  4.00  1.18
+         None 11005       16.95  5.48 19.45
+   BOX_SAFETY  1096        9.80  8.80  3.93
+
+== (per-player rows for one play omitted: raw rows are never committed)

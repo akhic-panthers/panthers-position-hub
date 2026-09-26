@@ -28,7 +28,8 @@ Example output (synthetic dry run, so the names are fake): a safety at **41% dee
 
 ```bash
 pip install -e ".[dev]"            # numpy · polars · pyarrow · scikit-learn · requests · pytest
-cp .env.example .env               # fill DATABRICKS_HOST / TOKEN / HTTP_PATH, PANTHERS_DATA_DIR
+databricks auth login --host https://adb-7405617646104787.7.azuredatabricks.net   # once; or `az login`
+export DATABRICKS_HOST=https://adb-7405617646104787.7.azuredatabricks.net          # no token needed after a CLI login
 pytest -q                          # 28 tests, synthetic tracking, ~15 s
 
 poshub demo                        # whole pipeline on synthetic plays → viewer/data/role_mix.json
@@ -39,6 +40,7 @@ On a machine that holds the tracking (`PANTHERS_DATA_DIR/<season>_NGS_Player_Pla
 
 ```bash
 poshub status                      # Databricks reachable? local export? Thunder? OpenField?
+poshub probe                       # host → auth → catalog → warehouse → SQL → tables, with the remedy for the first failure
 poshub discover                    # → data_contracts/uc_inventory.json (catalogs, tables, columns, NGS candidates)
 poshub features --seasons 2024 2025          # NGS + PFF → out/features.parquet
 poshub fit --holdout-weeks 17 18             # → out/model.pkl (held out by GAME)
@@ -54,6 +56,7 @@ workspace first; it writes the charted half of the snap table to `/Volumes/pff/b
 2. `docs/02_role_taxonomy.md` — the registered role vocabulary and every threshold.
 3. `docs/REGISTERED_role_attribution_v1.md` — the gates, written before any real snap is scored.
 4. `docs/01_data_contract.md` — Databricks names, NGS schema, join spine, landmines.
+   `docs/03_databricks_setup.md` — how to authenticate from a laptop, a container, or CI, and what each probe rung means.
 5. `docs/paper_notes/eager_seth_2023.md` — Eric's paper and what is taken from it.
 
 ## Layout
@@ -81,7 +84,11 @@ Gate first, tune never. A NO-GO ships as a report. A bug is never a finding. Des
 labelled (role shares are ratings of deployment, not grades or projections). Nothing generated enters any
 pool, price, index or board. Held out by game, never by row. Empty string ≠ NULL in the PFF feed.
 
-## Status (2026-09-25)
-Built and tested on synthetic tracking only. This container could not reach the Databricks workspace
-(network policy) and holds no tracking, so no real snap has been scored; the first real run fills the gate
-table in `docs/REGISTERED_role_attribution_v1.md`.
+## Status (2026-09-26, v2)
+- **v2 role model** (trained on PFF's charted slot, checked against NGS): all seven gates GO. `runs/2026-09-26_v2/REPORT.md`.
+- **v1 first run** (2022–2025, 1.62M defender-snaps): `runs/2026-09-25_full/REPORT.md`.
+- **The app** (`web/`, Next.js in the Panthers analytics UI): Role Board, Player Room (alignment map, heatmap, first
+  two seconds, block map), film for every snap from Thunder, Team Shells, Method. `poshub export-web` builds its data;
+  `cd web && pnpm install && pnpm dev` serves it on :3100. The Thunder login lives in the repo `.env` (gitignored) and
+  is read server-side only.
+- `viewer/index.html` is the original static viewer, kept for the v1 JSON.

@@ -101,3 +101,19 @@ def test_heldout_gate_uses_games_not_rows(fitted):
     _, scored, hold = fitted
     g = heldout_accuracy(scored, hold, "true_align_role", "align_role")
     assert g["n"] == scored.filter(pl.col("game_key").is_in(hold)).height
+
+
+def test_viewer_json_has_no_bare_nan(tmp_path):
+    """Planted defect: a NaN share must come out as null, or JSON.parse fails in the viewer."""
+    import json
+
+    import polars as pl
+
+    from position_hub.viewer.export import export_pos_boards, export_viewer_json
+
+    mix = pl.DataFrame({"nfl_id": [1], "season": [2025], "snaps": [300], "player_name": ["X"], "peer_group": ["S"], "team": ["CAR"],
+                        "share_DEEP_MIDDLE": [float("nan")], "pct_share_DEEP_MIDDLE": [float("nan")], "mean_depth": [float("inf")]})
+    for fn, name in ((export_viewer_json, "v.json"), (export_pos_boards, "b.json")):
+        txt = (tmp_path / name).read_text() if fn(mix, tmp_path / name) is not None else ""
+        assert "NaN" not in txt and "Infinity" not in txt
+        json.loads(txt)

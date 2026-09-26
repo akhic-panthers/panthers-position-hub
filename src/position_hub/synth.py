@@ -224,3 +224,56 @@ def make_season(n_games: int = 6, plays_per_game: int = 40, seed: int = 0) -> tu
 
 
 assert set(BEHAVIOUR) == set(ALIGN_ROLES), "synthetic behaviours must cover the taxonomy"
+
+
+def write_local_export(root, frames: pl.DataFrame, truth: pl.DataFrame, season: int = 2025) -> None:
+    """Lay synthetic data out exactly like the Mac: <root>/<season>_NGS_Player_Play/<week>/<game_key>.parquet
+    and <root>/data/pff_export/{pffplays,pffdefense,coverage_defense}/*.parquet with the raw PFF column
+    names, so `poshub features` runs end to end against it. Tests only."""
+    from pathlib import Path
+
+    root = Path(root)
+    for i, (gk, g) in enumerate(frames.group_by("game_key", maintain_order=True)):
+        week = i % 3 + 1
+        d = root / f"{season}_NGS_Player_Play" / str(week)
+        d.mkdir(parents=True, exist_ok=True)
+        g.write_parquet(d / f"{int(gk[0])}.parquet")
+    plays = (truth.select("game_key", "gsis_play_id", "is_pass", "play_action").unique(["game_key", "gsis_play_id"])
+             .with_columns((pl.col("game_key") * 10 + 7).alias("pff_GAMEID"), (pl.col("gsis_play_id") * 3).alias("pff_PLAYID"))
+             .select(pl.col("pff_GAMEID"), pl.col("pff_PLAYID"), pl.col("game_key").alias("pff_GSISGAMEKEY"),
+                     pl.col("gsis_play_id").alias("pff_GSISPLAYID"), pl.lit(season).alias("pff_GAMESEASON"),
+                     ((pl.col("game_key") % 3) + 1).alias("pff_WEEK"), pl.lit("CAR").alias("pff_OFFTEAM"), pl.lit("ATL").alias("pff_DEFTEAM"),
+                     pl.lit(1).alias("pff_DOWN"), pl.lit(10).alias("pff_DISTANCE"), pl.lit(1).alias("pff_QUARTER"),
+                     pl.when(pl.col("is_pass")).then(pl.lit("P")).otherwise(pl.lit("R")).alias("pff_RUNPASS"),
+                     pl.when(pl.col("play_action")).then(pl.lit("Y")).otherwise(pl.lit("")).alias("pff_PLAYACTION"),
+                     pl.lit("").alias("pff_RUNPASSOPTION"), pl.lit("").alias("pff_DROPBACKTYPE"), pl.lit("").alias("pff_DROPBACKDEPTH"),
+                     pl.lit("Cover 3").alias("pff_PASSCOVERAGE"), pl.lit("O").alias("pff_MOFOCSHOWN"), pl.lit("C").alias("pff_MOFOCPLAYED"),
+                     pl.lit("6").alias("pff_BOXPLAYERS"), pl.lit("4-2-5").alias("pff_DEFPERSONNEL"), pl.lit("").alias("pff_DEFFRONT"),
+                     pl.lit("").alias("pff_BLITZDOG"), pl.lit("Y").alias("pff_SHOTGUN"), pl.lit("").alias("pff_PISTOL"),
+                     pl.lit("").alias("pff_SHIFTMOTION"), pl.lit("11").alias("pff_OFFPERSONNELBASIC"), pl.lit("").alias("pff_RUNCONCEPTPRIMARY"),
+                     pl.lit("").alias("pff_RBDIRECTION"), pl.lit("LCB (7); FS (14)").alias("pff_DBDEPTH"), pl.lit("MLB (4)").alias("pff_LBDEPTH"),
+                     pl.lit("").alias("pff_DEFENDERWIDTH"), pl.lit(0.0).alias("pff_EXPECTEDPOINTSADDED")))
+    keys = plays.select("pff_GAMEID", "pff_PLAYID", pl.col("pff_GSISGAMEKEY").alias("game_key"), pl.col("pff_GSISPLAYID").alias("gsis_play_id"))
+    dfn = (truth.join(keys, on=["game_key", "gsis_play_id"])
+           .select("pff_GAMEID", "pff_PLAYID", (pl.col("nfl_id") + 500000).alias("pff_PLAYERID"), pl.col("nfl_id").alias("pff_GSISPLAYERID"),
+                   pl.lit("Synthetic Player").alias("pff_PLAYERNAME"), pl.col("pff_alignment").alias("pff_POSITION"),
+                   pl.col("pff_alignment").alias("pff_GAMEPOSITION"),
+                   pl.when(pl.col("true_responsibility") == "RUSH").then(pl.lit("Pass Rush")).when(pl.col("true_responsibility") == "RUN_FIT").then(pl.lit("Run Defense")).otherwise(pl.lit("Coverage")).alias("pff_ROLE"),
+                   pl.when(pl.col("true_align_role").is_in(["EDGE", "INTERIOR_DL", "OFF_BALL_LB"])).then(pl.lit("Y")).otherwise(pl.lit("")).alias("pff_BOXPLAYER"),
+                   pl.lit("").alias("pff_PLAYERDEPTH"), pl.lit("").alias("pff_DEFTECHNIQUE"), pl.lit("").alias("pff_PRESS"),
+                   pl.lit("").alias("pff_PRIMARYCOVERAGE"), pl.lit("").alias("pff_SECONDARYCOVERAGE"), pl.lit("").alias("pff_PRESSURE"),
+                   pl.lit("").alias("pff_STOP"), pl.lit("").alias("pff_TACKLE"), pl.lit("").alias("pff_MISSEDTACKLE")))
+    assign = {"MAN": "MAN", "RUSH": "PRE", "DEEP_ZONE": "3M", "UNDER_ZONE": "HOL"}
+    cov = (truth.filter(pl.col("is_pass"))
+           .select(pl.col("game_key").alias("gsis_game_id"), "gsis_play_id", pl.col("nfl_id").alias("gsis_player_id"),
+                   pl.lit(season).alias("season"), ((pl.col("game_key") % 3) + 1).alias("week"), pl.col("pff_alignment").alias("position"),
+                   pl.col("pff_alignment").alias("season_position"),
+                   pl.col("true_responsibility").map_elements(lambda r: assign.get(r), return_dtype=pl.Utf8).alias("assignment"),
+                   pl.lit(None, pl.Utf8).alias("modifier1"), pl.lit(None, pl.Utf8).alias("modifier2"),
+                   pl.lit(None, pl.Int64).alias("primary_matchup_player_gsis_id"), pl.lit(None, pl.Utf8).alias("press"),
+                   pl.lit(False).alias("bust"), pl.lit(False).alias("bail"), pl.lit(False).alias("primary_coverage"),
+                   pl.lit(0.0).alias("coverage_grade"), pl.col("defense_team").alias("defense")))
+    for name, df in (("pffplays", plays), ("pffdefense", dfn), ("coverage_defense", cov)):
+        d = root / "data" / "pff_export" / name
+        d.mkdir(parents=True, exist_ok=True)
+        df.write_parquet(d / "part-0.parquet")

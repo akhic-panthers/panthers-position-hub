@@ -1,0 +1,42 @@
+[
+ {
+  "name": "O1_heldout_vs_PFF_slot",
+  "value": 0.9042684617905857,
+  "bar": 0.8111277513047425,
+  "pass": true,
+  "n": 79326,
+  "note": "E4 rule 0.791; majority 0.413"
+ },
+ {
+  "name": "O1_null_shuffled_labels",
+  "value": 0.41302977586163425,
+  "bar": 0.43302977586163427,
+  "pass": true,
+  "n": 79326,
+  "note": "labels shuffled within game, identical fit"
+ },
+ {
+  "name": "O2_calibration_ECE",
+  "value": 0.003864358910950947,
+  "bar": 0.05,
+  "pass": true,
+  "n": 79326,
+  "note": "top-label, 10 bins"
+ },
+ {
+  "name": "O3_split_half",
+  "value": 0.972475120413505,
+  "bar": 0.7,
+  "pass": true,
+  "n": 1331,
+  "note": "per-role: WIDE 0.99, SLOT 0.93, FLEX 0.85, INLINE_TE 0.99, H_BACK 0.96, TAILBACK 1.00"
+ },
+ {
+  "name": "O4_destruction",
+  "value": 0.5330560429018295,
+  "bar": "< 0.5 \u00d7 0.972",
+  "pass": false,
+  "n": 1331,
+  "note": "role vectors shuffled across the offense within the play"
+ }
+]

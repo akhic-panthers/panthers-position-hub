@@ -44,6 +44,21 @@ PFF_TABLE_NAMES = ["pffplays", "pffoffense", "pffdefense", "pffgames", "pffroste
                    "pffquarterbackchartings", "nfl_player", "season_grade", "game_grade", "pff_teams"]
 PFF_TABLES: dict[str, str] = {t: f"{PFF_CATALOG}.{PFF_SCHEMA}.{t}" for t in PFF_TABLE_NAMES}
 
+# NGS in Unity Catalog — found by `poshub discover` 2026-09-25 (data_contracts/uc_inventory.json).
+#   player_play          play-level, 114 cols, REG+POST 2016–2025 (+2026 in progress): x/y at snap, the BALL at the
+#                        snap (x_ball_at_snap, y_ball_at_snap), depth_from_los_at_snap, Play_Direction, and NGS's own
+#                        per-snap defender role `ngs_position` (CB SLOT_CB HIGH_SAFETY BOX_SAFETY MLB OLB EDGE INTERIOR_LINE)
+#   player_position      frame-level tracking, same columns as the per-game parquet on the Mac (~680M rows/season)
+#   ball_position_data   frame-level BALL track (2,898 games) — NGS does have a ball, just not in the per-game export
+#   plays                play table with play_type, EPA, WP
+NGS_CATALOG = "ngsdb"
+NGS_TABLES: dict[str, str] = {
+    "ngs_player_play": f"{NGS_CATALOG}.bronze.player_play",
+    "ngs_player_position": f"{NGS_CATALOG}.bronze.player_position",
+    "ngs_ball_position": f"{NGS_CATALOG}.bronze.ball_position_data",
+    "ngs_plays": f"{NGS_CATALOG}.bronze.plays",
+}
+
 
 def table_name(logical: str) -> str:
     """Three-part UC name for a logical table; env override wins."""
@@ -52,6 +67,8 @@ def table_name(logical: str) -> str:
         return override
     if logical in PFF_TABLES:
         return PFF_TABLES[logical]
+    if logical in NGS_TABLES:
+        return NGS_TABLES[logical]
     raise KeyError(f"unknown logical table {logical!r}; set POSHUB_TABLE_{logical.upper()}")
 
 
@@ -61,6 +78,9 @@ class DatabricksConfig:
     token: str = field(default_factory=lambda: _env("DATABRICKS_TOKEN"))
     http_path: str = field(default_factory=lambda: _env("DATABRICKS_HTTP_PATH"))
     profile: str = field(default_factory=lambda: _env("DATABRICKS_CONFIG_PROFILE"))
+    azure_tenant_id: str = field(default_factory=lambda: _env("ARM_TENANT_ID"))
+    azure_client_id: str = field(default_factory=lambda: _env("ARM_CLIENT_ID"))
+    azure_client_secret: str = field(default_factory=lambda: _env("ARM_CLIENT_SECRET"))
     volume: str = field(default_factory=lambda: _env("POSHUB_UC_VOLUME", "/Volumes/pff/bronze/exports"))
     timeout_s: int = 60
 
@@ -68,12 +88,26 @@ class DatabricksConfig:
     def configured(self) -> bool:
         return bool(self.host)
 
+    @property
+    def has_azure_cli(self) -> bool:
+        import shutil
+
+        return shutil.which("az") is not None
+
+    @property
+    def has_databricks_cli(self) -> bool:
+        import shutil
+
+        return shutil.which("databricks") is not None
+
     def missing(self) -> list[str]:
         m = []
         if not self.host:
             m.append("DATABRICKS_HOST")
-        if not self.token and not self.profile:
-            m.append("DATABRICKS_TOKEN (or DATABRICKS_CONFIG_PROFILE)")
+        if not (self.token or self.profile or self.has_azure_cli or self.has_databricks_cli
+                or (self.azure_tenant_id and self.azure_client_id and self.azure_client_secret)):
+            m.append("a credential: `databricks auth login --host <host>`, or `az login`, or DATABRICKS_TOKEN, "
+                     "or ARM_TENANT_ID/ARM_CLIENT_ID/ARM_CLIENT_SECRET")
         return m
 
 
