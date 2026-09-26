@@ -1,0 +1,42 @@
+[
+ {
+  "name": "G1_pff_agreement",
+  "value": 0.8356145931423797,
+  "bar": 0.8,
+  "pass": true,
+  "n": 1618404,
+  "note": "top-1 alignment role vs PFF alignment family (safety depth classes folded)"
+ },
+ {
+  "name": "G2a_heldout_alignment",
+  "value": 0.9995271349173172,
+  "bar": 0.3701015631960197,
+  "pass": null,
+  "n": 145919,
+  "note": "VOID \u2014 label is a deterministic function of the features (reads 1.000 by construction). held-out PFF slot: rule 0.814 vs model 0.826; NGS role: rule 0.865 vs model 0.869; model = rule on 98.6% of snaps"
+ },
+ {
+  "name": "G2b_heldout_responsibility",
+  "value": 0.8039941637789532,
+  "bar": 0.5324366222870691,
+  "pass": true,
+  "n": 54830,
+  "note": "majority-class baseline 0.382; 127 held-out games"
+ },
+ {
+  "name": "G3_split_half",
+  "value": 0.9632634111725396,
+  "bar": 0.7,
+  "pass": true,
+  "n": 2575,
+  "note": "median even/odd-game correlation of alignment shares; per-role: EDGE 0.99, INTERIOR_DL 0.99, OFF_BALL_LB 0.99, OVERHANG 0.67, SLOT_CB 0.94, BOUNDARY_CB 0.99, BOX_SAFETY 0.91, DEEP_HALF 0.96, DEEP_MIDDLE 0.95"
+ },
+ {
+  "name": "G4_destruction",
+  "value": 0.20443422959358815,
+  "bar": "< 0.5 \u00d7 real (0.963)",
+  "pass": true,
+  "n": 2575,
+  "note": "within-play shuffle of role vectors; stability must collapse"
+ }
+]

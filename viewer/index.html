@@ -108,7 +108,7 @@ function renderDetail() {
         <div><span class="muted">post safety on one-high calls</span><b>${p.by_call.middle_share_one_high==null?'—':Math.round(p.by_call.middle_share_one_high*100)+'%'}</b></div>
         <div><span class="muted">share of his mix the call explains</span><b>${p.by_call.call_explains==null?'—':Math.round(p.by_call.call_explains*100)+'%'}</b><span class="muted">${p.by_call.call_explains>=0.5?'mostly the defense he plays in':'mostly his own deployment'}</span></div>
       </div>` : ''}
-      <p class="caveats">Soft share = mean probability over snaps. Hard share (most-likely role per snap): ${roles.map(r => `${L[r]} ${Math.round((p.align_hard[r]||0)*100)}%`).join(' · ')}. The gap between the two is how ambiguous his alignments are.</p>
+      <p class="caveats">Shares count what he lined up as, snap by snap, from the tracking at the snap. Most-likely role per snap: ${roles.map(r => `${L[r]} ${Math.round((p.align_hard[r]||0)*100)}%`).join(' · ')}.</p>
     </div>
     <div class="card">
       <h3>Gates on this build</h3>

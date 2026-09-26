@@ -84,7 +84,8 @@ Gate first, tune never. A NO-GO ships as a report. A bug is never a finding. Des
 labelled (role shares are ratings of deployment, not grades or projections). Nothing generated enters any
 pool, price, index or board. Held out by game, never by row. Empty string ≠ NULL in the PFF feed.
 
-## Status (2026-09-25)
-Built and tested on synthetic tracking only. This container could not reach the Databricks workspace
-(network policy) and holds no tracking, so no real snap has been scored; the first real run fills the gate
-table in `docs/REGISTERED_role_attribution_v1.md`.
+## Status (2026-09-25, first real run)
+Four seasons scored: 2022–2025, 1,139 games, 1.62M defender-snaps. G1, G2b, G3, G4 **GO**; G2a **VOID** (tautological
+by construction, see the registration); the alignment model is the rule, so v1's position field is a per-snap count.
+Extensions: bite / ground covered over expected, disguise and zone-match GO; offensive roles NO-GO at 84.3%.
+Read `runs/2026-09-25_full/REPORT.md`, then `docs/REGISTERED_role_attribution_v1.md` and `docs/v2_candidates.md`.

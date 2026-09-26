@@ -1,0 +1,1 @@
+scored 1,618,666 snaps → out/scored.parquet

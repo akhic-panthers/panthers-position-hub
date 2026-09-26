@@ -1,0 +1,65 @@
+E1 done
+E2 done
+E3 done
+E4 done
+# Phase 3 extensions · out
+
+Registered in docs/REGISTERED_phase3_extensions.md before this ran.
+
+## E1 · ground covered over expected (GCOE) and bite distance under expected (BDUE)
+
+| population | run snaps | GCOE RMSE / null | GCOE year-to-year | PA snaps | bite RMSE / null | BDUE year-to-year | GCOE × BDUE within season | GCOE year-to-year, shuffled |
+|---|---|---|---|---|---|---|---|---|
+| paper slots (PFF MLB/ILB/LB/SS on the snap) | 153,149 | 2.29 / 3.22 | 0.42 (n=121) | 65,817 | 2.29 / 2.63 | 0.58 (n=133) | -0.53 (n=234) | 0.19 |
+| tracking roles (off-ball backer / box safety / overhang) | 128,141 | 2.21 / 3.21 | 0.50 (n=112) | 54,692 | 2.20 / 2.54 | 0.62 (n=124) | -0.55 (n=212) | 0.27 |
+
+Paper (2017–2021): GCOE RMSE 2.47 vs null 3.76, year-to-year 0.66; BDUE RMSE 2.23 vs null 2.96, year-to-year 0.57; GCOE × BDUE −0.40. Residuals ship as per-play descriptors. No season ranking is produced.
+
+## E2 · disguise — the shell shown vs the shell played
+
+- plays with both calls charted: 145,139; shown ≠ played on 27.5%
+- shown C → played C: 52,651 · shown C → played O: 11,424 · shown O → played C: 28,559 · shown O → played O: 52,505
+- held-out-game AUC for 'shown ≠ played': snap shell only 0.665 · + line-set shell and safety movement 0.838 · movement permuted 0.666 · everything permuted 0.509
+
+## E3 · zone-match detector (MAN_MATCH vs spot drop, on charted zone calls)
+
+- charted zone reps: 457,447; pattern-matched (MAT/SEA/CAR/TAM) 10.2%
+- held-out-game AUC: pre-snap alignment only 0.760 · + post-snap geometry 0.880 · shuffled 0.503
+
+## E4 · offensive alignment roles (X / Z / slot / wing / inline TE / backfield)
+
+| rule role | n | WIDE | SLOT | WING | INLINE_TE | BACKFIELD |
+|---|---|---|---|---|---|---|
+| X | 237,063 | 96% | 0% | 3% | 0% | 0% |
+| Z | 26,319 | 97% | 1% | 2% | 0% | 0% |
+| SLOT | 160,609 | 0% | 92% | 2% | 5% | 0% |
+| WING | 55,055 | 7% | 34% | 9% | 41% | 10% |
+| INLINE_TE | 91,251 | 4% | 7% | 21% | 67% | 1% |
+| BACKFIELD | 157,627 | 1% | 7% | 0% | 0% | 92% |
+
+- top-1 agreement with PFF's offensive slot (X/Z folded): **84.3%** on 727,924 skill-player snaps
+
+## E5 · shell mix, and how much of a safety's mix the call explains
+
+- safeties with ≥ 200 charted snaps: 423; share of the variance in their per-snap deep probability that the one-high / two-high call explains: median 1%, IQR 0%–4%; ≥ 50% for 0% of them
+- where the call explains most of a safety's mix, his mix is a TEAM fact (what the coordinator called), and the viewer says so
+
+## gates
+
+| gate | value | bar | n | verdict |
+|---|---|---|---|---|
+| E1a_GCOE_rmse_paper | 2.286 | 2.901 | 153149 | GO |
+| E1a_BDUE_rmse_paper | 2.289 | 2.363 | 65817 | GO |
+| E1b_GCOE_yoy_paper | 0.417 | 0.300 | 121 | GO |
+| E1b_BDUE_yoy_paper | 0.583 | 0.300 | 133 | GO |
+| E1_destruction_paper | 0.187 | < 0.5 × 0.42 | 121 | GO |
+| E1a_GCOE_rmse_tracking | 2.215 | 2.891 | 128141 | GO |
+| E1a_BDUE_rmse_tracking | 2.202 | 2.287 | 54692 | GO |
+| E1b_GCOE_yoy_tracking | 0.502 | 0.300 | 112 | GO |
+| E1b_BDUE_yoy_tracking | 0.624 | 0.300 | 124 | GO |
+| E1_destruction_tracking | 0.273 | < 0.5 × 0.50 | 112 | NO-GO |
+| E2_disguise_auc | 0.838 | ≥ 0.70 and ≥ 0.665 + 0.05 | 145139 | GO |
+| E2_destruction | 0.509 | ≤ 0.55 (all features permuted within game) | 145139 | GO |
+| E3_zone_match_auc | 0.880 | ≥ 0.70 and ≥ 0.760 + 0.05 | 457447 | GO |
+| E3_destruction | 0.503 | ≤ 0.55 (label shuffled within game) | 457447 | GO |
+| E4_offense_agreement | 0.843 | 0.850 | 727924 | NO-GO |

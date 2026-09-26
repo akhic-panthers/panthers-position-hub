@@ -17,7 +17,7 @@ from ..roles.taxonomy import ALIGN_ROLES, PRIMARY_ROLES_OF_GROUP, RESPONSIBILITI
 
 CAVEATS = [
     "Role shares are DESCRIPTIVE: what the tracking says he did on his snaps this season. They are not a grade and not a projection.",
-    "Alignment shares are mean probabilities over snaps (soft). Hard shares (argmax) are carried beside them; the gap between the two is the geometric ambiguity of his alignments.",
+    "Alignment shares count the role he lined up in on each snap, read from the tracking at the snap. In v1 the per-snap call is effectively certain, so a share is a count, not a blend of probabilities.",
     "Responsibility on pass snaps is PFF's charted assignment where charted; otherwise the tracking model's estimate. Run snaps are geometric (run fit / rush).",
     "Percentiles are within roster position group and season, among players above the snap floor. A high percentile means MORE of that job than peers, not better at it.",
     f"Players under {MIN_SNAPS_FOR_MIX} snaps are not shown; percentiles need {MIN_SNAPS_FOR_PERCENTILE}.",
@@ -73,7 +73,7 @@ def export_viewer_json(mix: pl.DataFrame, out: Path, gates: list[dict] | None = 
     if team_mix is not None:
         doc["teams"] = team_mix.to_dicts()
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(doc, indent=1, default=_json_default))
+    out.write_text(json.dumps(_clean(doc), indent=1, default=_json_default, allow_nan=False))
     return doc
 
 
@@ -108,5 +108,19 @@ def export_pos_boards(mix: pl.DataFrame, out: Path, gates: list[dict] | None = N
                     "caveats": CAVEATS, "roles": {"align": ALIGN_ROLES, "resp": RESPONSIBILITIES, "labels": ROLE_LABEL}, "gates": gates or []},
            "boards": boards}
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(json.dumps(doc, default=_json_default))
+    out.write_text(json.dumps(_clean(doc), default=_json_default, allow_nan=False))
     return doc
+
+
+def _clean(o):
+    """NaN / inf → null, recursively. A bare NaN breaks JSON.parse in every browser (sister-project landmine; hit again
+    here on the first real export, 2026-09-25). `allow_nan=False` on the dump makes a miss loud instead of silent."""
+    import math
+
+    if isinstance(o, float):
+        return None if (math.isnan(o) or math.isinf(o)) else o
+    if isinstance(o, dict):
+        return {k: _clean(v) for k, v in o.items()}
+    if isinstance(o, (list, tuple)):
+        return [_clean(v) for v in o]
+    return o

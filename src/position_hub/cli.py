@@ -136,6 +136,10 @@ def cmd_features(a) -> int:
         print("no tracking games found under", root, "— set PANTHERS_DATA_DIR or POSHUB_TABLE_NGS_TRACKING", file=sys.stderr)
         return 2
     workers = a.workers or max(1, min(8, (os.cpu_count() or 2) - 1))
+    # measured 2026-09-25: 14 workers × an 18-thread Polars pool each = load average 220 and 636 min of system time on a
+    # 272 min run. Each game is one worker's job; its Polars needs one thread. Spawned children inherit this.
+    os.environ.setdefault("POLARS_MAX_THREADS", "1")
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
     frames, off_frames, errors, done = [], [], [], 0
     print(f"  {len(jobs)} games on {workers} workers")
     with ProcessPoolExecutor(max_workers=workers) as ex:
@@ -175,7 +179,10 @@ def cmd_features(a) -> int:
     print(f"  play spine: tracking plays with a snap {trk_plays.height:,}; in pffplays {in_pff:,} ({in_pff / max(trk_plays.height, 1):.1%}); "
           f"PFF run+pass plays in these games {od_same_games.height:,}, with a tracked snap {od_in_trk:,} ({od_in_trk / max(od_same_games.height, 1):.1%}) "
           f"— the gap is plays with no ball_snap event in the frames (report it; do not paper over it)")
-    feats = feats.join(spine, on=["game_key", "gsis_play_id"], how="semi")
+    # the population is RUN + PASS plays. Defect found reading the first four-season mix (2026-09-25): keeping every
+    # pffplays play let penalties / no-plays / kneels / spikes (pff_RUNPASS empty, 5.5% of tracked plays) in, where the
+    # geometric fallback read defenders as rushers (corners at 4% "pass rush").
+    feats = feats.join(od, on=["game_key", "gsis_play_id"], how="semi")
     feats = feats.join(dsnaps.select("game_key", "gsis_play_id", "nfl_id", "pff_alignment", "pff_align_family", "pff_game_position",
                                      "pff_in_box", "pff_ROLE", "pff_PLAYERNAME").unique(["game_key", "gsis_play_id", "nfl_id"]),
                        on=["game_key", "gsis_play_id", "nfl_id"], how="left")
@@ -298,7 +305,7 @@ def cmd_extend(a) -> int:
     gates += g; md += L
     print("E3 done", flush=True)
     if (out / "offense_alignment.parquet").exists():
-        off = pl.read_parquet(out / "offense_alignment.parquet")
+        off = pl.read_parquet(out / "offense_alignment.parquet").join(s.select("game_key", "gsis_play_id").unique(), on=["game_key", "gsis_play_id"], how="semi")
         cache = out / "cache" / f"pffoffense_{'_'.join(map(str, seasons))}.parquet"
         if cache.exists():
             po = pl.read_parquet(cache)
@@ -324,7 +331,8 @@ def cmd_extend(a) -> int:
     call.write_parquet(out / "safety_mix_by_call.parquet")
     md += ["", "## gates", "", format_gates(gates)]
     (run / "extensions.md").write_text("\n".join(md) + "\n")
-    (run / "extensions_gates.json").write_text(json.dumps(gates, indent=1, default=str))
+    from .viewer.export import _clean
+    (run / "extensions_gates.json").write_text(json.dumps(_clean(gates), indent=1, default=str, allow_nan=False))
     print("\n".join(md))
     return 0
 
@@ -385,7 +393,8 @@ def cmd_mix(a) -> int:
     tm.write_parquet(out / "team_role_mix.parquet")
     gates = run_gates(s, holdout_games=hold, min_snaps=a.min_snaps)
     (out / "gates.md").write_text(format_gates(gates) + "\n")
-    (out / "gates.json").write_text(json.dumps(gates, indent=1, default=str))
+    from .viewer.export import _clean
+    (out / "gates.json").write_text(json.dumps(_clean(gates), indent=1, default=str, allow_nan=False))
     print(format_gates(gates))
     call = pl.read_parquet(out / "safety_mix_by_call.parquet") if (out / "safety_mix_by_call.parquet").exists() else None
     export_viewer_json(mix, Path(a.viewer_json), gates=gates, source=str(out), team_mix=tm, call=call)

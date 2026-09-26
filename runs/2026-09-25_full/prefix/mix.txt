@@ -1,0 +1,8 @@
+| gate | value | bar | n | verdict |
+|---|---|---|---|---|
+| G1_pff_agreement | 0.834 | 0.800 | 1638690 | GO |
+| G2a_heldout_alignment | 1.000 | 0.373 | 156440 | GO |
+| G2b_heldout_responsibility | 0.804 | 0.532 | 54830 | GO |
+| G3_split_half | 0.960 | 0.700 | 2657 | GO |
+| G4_destruction | 0.254 | < 0.5 × real (0.960) | 2657 | GO |
+2999 player-seasons → out/role_mix.parquet; viewer → viewer/data/role_mix.json

@@ -49,7 +49,25 @@ def heldout_accuracy(scored: pl.DataFrame, holdout_games: list[int], truth_col: 
     acc = float((h.get_column(pred_col) == h.get_column(truth_col)).mean())
     maj = float(h.get_column(truth_col).value_counts().get_column("count").max() / h.height)
     return {"name": f"G2_heldout_{pred_col}", "value": acc, "bar": maj + bar_over_majority, "pass": bool(acc >= maj + bar_over_majority),
-            "n": h.height, "note": f"majority-class baseline {maj:.3f}; games {sorted(holdout_games)}"}
+            "n": h.height, "note": f"majority-class baseline {maj:.3f}; {len(holdout_games)} held-out games"}
+
+
+def model_vs_rule(scored: pl.DataFrame, holdout_games: list[int]) -> str:
+    """Held-out games: top-1 agreement of rule and model with the two labels neither was built from."""
+    fold = {"DEEP_HALF": "DEEP_SAFETY", "DEEP_MIDDLE": "DEEP_SAFETY"}
+    h = scored.filter(pl.col("game_key").is_in(holdout_games))
+    parts = []
+    for lab, name in (("pff_align_family", "PFF slot"), ("ngs_align_family", "NGS role")):
+        if lab not in h.columns:
+            continue
+        g = h.filter(pl.col(lab).is_not_null())
+        res = []
+        for col in ("rule_align_role", "align_role"):
+            m = g[col].replace_strict(fold, default=None).fill_null(g[col])
+            res.append(float(((m == g[lab]) | ((m == "OVERHANG") & g[lab].is_in(["OFF_BALL_LB", "EDGE", "BOX_SAFETY"]))).mean()))
+        parts.append(f"{name}: rule {res[0]:.3f} vs model {res[1]:.3f}")
+    same = float((h["align_role"] == h["rule_align_role"]).mean()) if h.height else float("nan")
+    return f"held-out {'; '.join(parts)}; model = rule on {same:.1%} of snaps"
 
 
 def split_half_stability(scored: pl.DataFrame, min_snaps: int = 100, bar: float = 0.70, season_col: str = "season") -> dict:
@@ -100,6 +118,11 @@ def run_gates(scored: pl.DataFrame, holdout_games: list[int] | None = None, min_
         elif "label_align" in scored.columns:           # real data: the consensus label on held-out games
             g = heldout_accuracy(scored, holdout_games, "label_align", "align_role")
             g["name"] = "G2a_heldout_alignment"
+            # VOID by construction (first real run, 2026-09-25): the consensus label IS the rule wherever it exists, and the
+            # rule is a deterministic function of ALIGN_FEATURES, so a tree ensemble reproduces it on unseen games (1.000).
+            # The containment tripwire fired as registered. What the model adds is measured against labels it never saw.
+            g["pass"] = None
+            g["note"] = "VOID — label is a deterministic function of the features (reads 1.000 by construction). " + model_vs_rule(scored, holdout_games)
             out.append(g)
         if "responsibility" in scored.columns:
             # registered construction: coverage_defense assignments on held-out pass snaps. The model is scored on
@@ -121,6 +144,6 @@ def format_gates(gates: list[dict]) -> str:
     for g in gates:
         v = "—" if g["value"] is None else (f"{g['value']:.3f}" if isinstance(g["value"], float) else str(g["value"]))
         b = "—" if g["bar"] is None else (f"{g['bar']:.3f}" if isinstance(g["bar"], float) else str(g["bar"]))
-        verdict = "—" if g["pass"] is None else ("GO" if g["pass"] else "NO-GO")
+        verdict = ("VOID" if str(g.get("note", "")).startswith("VOID") else "—") if g["pass"] is None else ("GO" if g["pass"] else "NO-GO")
         lines.append(f"| {g['name']} | {v} | {b} | {g['n']} | {verdict} |")
     return "\n".join(lines)

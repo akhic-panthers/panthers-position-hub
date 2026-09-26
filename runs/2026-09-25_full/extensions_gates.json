@@ -1,0 +1,122 @@
+[
+ {
+  "name": "E1a_GCOE_rmse_paper",
+  "value": 2.2864209841068406,
+  "bar": 2.901073740679985,
+  "pass": true,
+  "n": 153149,
+  "note": "null 3.22; paper 2.47 vs 3.76"
+ },
+ {
+  "name": "E1a_BDUE_rmse_paper",
+  "value": 2.288571759580275,
+  "bar": 2.362710237873521,
+  "pass": true,
+  "n": 65817,
+  "note": "null 2.63; paper 2.23 vs 2.96"
+ },
+ {
+  "name": "E1b_GCOE_yoy_paper",
+  "value": 0.41714514609064446,
+  "bar": 0.3,
+  "pass": true,
+  "n": 121,
+  "note": "paper 0.66 (\u2265 200 run snaps)"
+ },
+ {
+  "name": "E1b_BDUE_yoy_paper",
+  "value": 0.5828630845630808,
+  "bar": 0.3,
+  "pass": true,
+  "n": 133,
+  "note": "paper 0.57 (\u2265 75 play-action snaps)"
+ },
+ {
+  "name": "E1_destruction_paper",
+  "value": 0.18660064357513712,
+  "bar": "< 0.5 \u00d7 0.42",
+  "pass": true,
+  "n": 121,
+  "note": "GCOE residuals shuffled across players within team-season"
+ },
+ {
+  "name": "E1a_GCOE_rmse_tracking",
+  "value": 2.2147278094052134,
+  "bar": 2.890995784830427,
+  "pass": true,
+  "n": 128141,
+  "note": "null 3.21; paper 2.47 vs 3.76"
+ },
+ {
+  "name": "E1a_BDUE_rmse_tracking",
+  "value": 2.202475247858247,
+  "bar": 2.2868166270994874,
+  "pass": true,
+  "n": 54692,
+  "note": "null 2.54; paper 2.23 vs 2.96"
+ },
+ {
+  "name": "E1b_GCOE_yoy_tracking",
+  "value": 0.5021512444944398,
+  "bar": 0.3,
+  "pass": true,
+  "n": 112,
+  "note": "paper 0.66 (\u2265 200 run snaps)"
+ },
+ {
+  "name": "E1b_BDUE_yoy_tracking",
+  "value": 0.624143761436342,
+  "bar": 0.3,
+  "pass": true,
+  "n": 124,
+  "note": "paper 0.57 (\u2265 75 play-action snaps)"
+ },
+ {
+  "name": "E1_destruction_tracking",
+  "value": 0.2729719763784332,
+  "bar": "< 0.5 \u00d7 0.50",
+  "pass": false,
+  "n": 112,
+  "note": "GCOE residuals shuffled across players within team-season"
+ },
+ {
+  "name": "E2_disguise_auc",
+  "value": 0.8378260297504982,
+  "bar": "\u2265 0.70 and \u2265 0.665 + 0.05",
+  "pass": true,
+  "n": 145139,
+  "note": "snap-only baseline 0.665; shown \u2260 played on 27.5% of plays"
+ },
+ {
+  "name": "E2_destruction",
+  "value": 0.5088901998182428,
+  "bar": "\u2264 0.55 (all features permuted within game)",
+  "pass": true,
+  "n": 145139,
+  "note": "movement-only permuted 0.666 (should return to the 0.665 baseline)"
+ },
+ {
+  "name": "E3_zone_match_auc",
+  "value": 0.8801050605306714,
+  "bar": "\u2265 0.70 and \u2265 0.760 + 0.05",
+  "pass": true,
+  "n": 457447,
+  "note": "pre-snap baseline 0.760; MAN_MATCH base rate 10.2%"
+ },
+ {
+  "name": "E3_destruction",
+  "value": 0.5027512316546966,
+  "bar": "\u2264 0.55 (label shuffled within game)",
+  "pass": true,
+  "n": 457447,
+  "note": ""
+ },
+ {
+  "name": "E4_offense_agreement",
+  "value": 0.8426964902929427,
+  "bar": 0.85,
+  "pass": false,
+  "n": 727924,
+  "note": "X/Z folded to WIDE; PFF does not chart on/off the line"
+ }
+]
