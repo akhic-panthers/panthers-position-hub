@@ -49,7 +49,7 @@ into the backfield. PFF's motion-type letters (M, I, J, G, H) are not defined in
 | Tetairoa McMillan (CAR) | 2025 | 87% wide · 9% slot | 86% of his wide snaps on the line (an X); 21% of routes targeted |
 | Xavier Legette (CAR) | 2025 | 73% wide · 18% slot · 6% flexed | |
 | Ja'Tavion Sanders (CAR) | 2025 | 45% tight end · 23% flexed · 17% wide · 14% slot | 16% motion or shift |
-| Chuba Hubbard (CAR) | 2025 | 83% tailback · 9% wide · 6% H-back | flares and flats; stays in to block on about a tenth of pass snaps |
+| Chuba Hubbard (CAR) | 2025 | 83% tailback · 9% wide · 6% H-back | flares and flats; stays in to block on about 18% of pass snaps (57 of 307) |
 | Travis Kelce (KC) | 2024 | 38% tight end · 27% wide · 19% slot · 12% flexed | covered most by off-ball linebackers, then slot corners |
 | George Kittle (SF) | 2024 | 66% tight end · 14% slot · 10% wide | 59% of his tight end snaps off the line as a wing |
 | Kyle Juszczyk (SF) | 2024 | all six jobs | 52% motion or shift |
